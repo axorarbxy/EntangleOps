@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+backend/data/*
+!backend/data/.gitkeep
+backend/data/keys.json
+backend/data/audit.jsonl
+backend/data/runs/
+backend/data/*.joblib
+backend/data/*.sig
+monitoring/secrets/*
+!monitoring/secrets/.gitkeep
+security/__pycache__/

@@ -1,0 +1,38 @@
+groups:
+  - name: entangleops-availability
+    rules:
+      - alert: EntangleOpsDown
+        expr: up{job="entangleops"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "EntangleOps scrape is down", description: "Prometheus cannot scrape the backend metrics endpoint."}
+      - alert: EntangleOpsHighErrorRate
+        expr: sum(rate(eo_http_requests_total{status_class="5xx"}[5m])) / clamp_min(sum(rate(eo_http_requests_total[5m])), 1) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Backend error rate is elevated", description: "More than 5% of requests returned server errors."}
+      - alert: EntangleOpsSlowRequests
+        expr: histogram_quantile(0.95, sum by (le) (rate(eo_http_request_duration_seconds_bucket[5m]))) > 2
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Backend requests are slow", description: "The five minute p95 request latency is above two seconds."}
+      - alert: EntangleOpsQueueSaturated
+        expr: eo_queue_depth >= eo_queue_capacity
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Run queue is saturated", description: "Queued simulation work has reached its configured capacity."}
+      - alert: EntangleOpsAuditChainBroken
+        expr: eo_audit_chain_ok == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "Audit chain verification failed", description: "The audit log hash chain did not verify."}
+      - alert: EntangleOpsPredictorDrift
+        expr: eo_predictor_mae > 0.03
+        for: 15m
+        labels: {severity: warning}
+        annotations: {summary: "Predictor error is elevated", description: "0.03 is a placeholder until a baseline is measured."}
+      - alert: EntangleOpsPredictorOutOfRange
+        expr: eo_predictor_out_of_range_ratio > 0.2
+        for: 15m
+        labels: {severity: warning}
+        annotations: {summary: "Predictor inputs are outside training range", description: "0.2 is a placeholder until a baseline is measured."}

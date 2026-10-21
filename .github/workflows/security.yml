@@ -1,0 +1,20 @@
+name: security
+on: [push, pull_request]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r backend/requirements-dev.txt
+      - run: ruff check backend security --config backend/pyproject.toml
+      - run: bandit -r backend/app backend/scripts security -ll
+      - run: pip-audit -r backend/requirements.txt
+      - run: pytest -q backend/tests
+      - run: python backend/scripts/gen_dashboard.py
+      - name: Check Prometheus alert rules
+        run: docker run --rm --entrypoint=/bin/promtool -v "${{ github.workspace }}:/workspace" prom/prometheus:v2.54.1 check rules /workspace/monitoring/alerts.yml
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }

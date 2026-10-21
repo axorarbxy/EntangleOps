@@ -1,0 +1,10 @@
+.env
+.git
+.venv
+__pycache__
+*.pyc
+data/keys.json
+data/audit.jsonl
+data/runs/
+*.joblib
+*.sig

@@ -1,0 +1,9 @@
+{$EO_DOMAIN:localhost} {
+    @metrics path /metrics /metrics/*
+    respond @metrics "Not Found" 404
+    encode zstd gzip
+    request_body {
+        max_size 64KB
+    }
+    reverse_proxy backend:8000
+}

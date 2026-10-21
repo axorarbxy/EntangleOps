@@ -1,0 +1,11 @@
+**/.env
+**/.git
+**/.venv
+**/__pycache__
+**/*.pyc
+backend/data/keys.json
+backend/data/audit.jsonl
+backend/data/runs/
+backend/data/*.joblib
+backend/data/*.sig
+monitoring/secrets/*
