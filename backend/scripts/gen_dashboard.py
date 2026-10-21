@@ -20,6 +20,10 @@ QUERIES = [
     ("Authentication failures", 'sum(rate(eo_auth_failures_total[5m]))', "reqps"),
     ("WebSocket connections", 'eo_ws_connections', "short"),
     ("Event loop lag p95", 'histogram_quantile(0.95, sum by (le) (rate(eo_event_loop_lag_seconds_bucket[5m])))', "s"),
+    ("Database operation p95", 'histogram_quantile(0.95, sum by (le) (rate(eo_db_operation_duration_seconds_bucket[5m])))', "s"),
+    ("Database errors", 'sum(rate(eo_db_errors_total[5m]))', "reqps"),
+    ("Database pool utilization", 'eo_db_pool_checked_out / clamp_min(eo_db_pool_capacity, 1)', "percentunit"),
+    ("Database health", 'eo_db_reachable', "short"),
 ]
 
 def main() -> None:

@@ -1,9 +1,27 @@
 {$EO_DOMAIN:localhost} {
-    @metrics path /metrics /metrics/*
-    respond @metrics "Not Found" 404
     encode zstd gzip
-    request_body {
-        max_size 64KB
+
+    @internal path /metrics
+    handle @internal {
+        respond 404
     }
-    reverse_proxy backend:8000
+
+    @backend path /api/* /ws/* /health /health/*
+    handle @backend {
+        request_body {
+            max_size 64KB
+        }
+        reverse_proxy backend:8000
+    }
+
+    handle {
+        header {
+            Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss://{$EO_DOMAIN:localhost}; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+            Referrer-Policy "no-referrer"
+            X-Frame-Options "DENY"
+            Cross-Origin-Opener-Policy "same-origin"
+            Permissions-Policy "geolocation=(), camera=(), microphone=()"
+        }
+        reverse_proxy frontend:8080
+    }
 }

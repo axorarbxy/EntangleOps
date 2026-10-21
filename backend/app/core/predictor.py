@@ -15,6 +15,17 @@ from security.model_integrity import sign_file,verify_file
 
 logger=logging.getLogger(__name__)
 _EPHEMERAL_SIGNING_KEY=secrets.token_hex(32)
+_audit_callback=None
+
+def set_audit_callback(callback)->None:
+    """Inject audit delivery from the application without coupling model code to storage."""
+    global _audit_callback
+    _audit_callback=callback
+
+def _audit(kind:str,**fields)->None:
+    if _audit_callback is not None:
+        try:_audit_callback(kind,**fields)
+        except Exception:logger.exception("Unable to record predictor audit event")
 class ModelIntegrityError(RuntimeError):pass
 def _signing_key()->str:
     if settings.model_signing_key:return settings.model_signing_key
@@ -41,10 +52,7 @@ class FidelityPredictor:
     def load(cls,path:str|Path)->FidelityPredictor:
         key=_signing_key()
         if not verify_file(path,key):
-            try:
-                from security.audit import AuditLog
-                AuditLog(settings.audit_path).event("model.verify_fail",path=str(path))
-            except Exception:logger.error("Model integrity verification failed")
+            _audit("model.verify_fail",path=Path(path).name)
             raise ModelIntegrityError("model signature verification failed")
         d=joblib.load(path);p=cls();p.model=d["model"];p.horizon_steps=d["horizon_steps"];p.metrics=d.get("metrics",{});p.feature_min=d.get("feature_min",[]);p.feature_max=d.get("feature_max",[]);return p
     @classmethod
@@ -69,10 +77,7 @@ class FidelityPredictor:
             from monitoring.metrics import predictor_loads
             predictor_loads.labels("retrained").inc()
         except Exception:pass
-        try:
-            from security.audit import AuditLog
-            AuditLog(settings.audit_path).event("model.retrained",path=str(path))
-        except Exception:logger.warning("Unable to record model retraining event")
+        _audit("model.retrained",path=Path(path).name)
         return p
 
 def generate_training_data(n_scenarios:int,horizon_steps:int,seed:int,preset:str="metro")->tuple[np.ndarray,np.ndarray,np.ndarray]:

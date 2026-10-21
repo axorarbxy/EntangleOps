@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: eo_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+      POSTGRES_DB: postgres
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --data-checksums
+    secrets: [db_admin_password, db_owner_password, db_app_password]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./database/deploy/init:/docker-entrypoint-initdb.d:ro
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U eo_admin -d entangleops"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "-m", "alembic", "-c", "database/alembic.ini", "upgrade", "head"]
+    environment:
+      EO_ENV: production
+      EO_MIGRATION_DATABASE_URL: postgresql+psycopg://eo_owner@db:5432/entangleops
+      EO_MIGRATION_PASSWORD_FILE: /run/secrets/db_owner_password
+    secrets: [db_owner_password]
+    depends_on:
+      db: {condition: service_healthy}
+    networks: [data]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+  backend:
+    environment:
+      EO_DATABASE_URL: postgresql+psycopg://eo_app@db:5432/entangleops
+      EO_DATABASE_PASSWORD_FILE: /run/secrets/db_app_password
+      EO_DB_AUTO_MIGRATE: "false"
+    secrets: [db_app_password]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    networks: [default, data]
+secrets:
+  db_admin_password: {file: ./database/secrets/db_admin_password}
+  db_owner_password: {file: ./database/secrets/db_owner_password}
+  db_app_password: {file: ./database/secrets/db_app_password}
+networks:
+  data:
+    internal: true
+volumes:
+  pg_data:

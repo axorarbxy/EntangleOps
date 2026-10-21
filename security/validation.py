@@ -1,5 +1,6 @@
 from __future__ import annotations
 from app.config import Settings
+from sqlalchemy.engine import make_url
 
 class InsecureConfigError(RuntimeError):
     """Raised when production security settings are unsafe."""
@@ -14,6 +15,25 @@ def validate_settings(s: Settings) -> list[str]:
     if s.max_body_bytes>1_048_576:problems.append("EO_MAX_BODY_BYTES must be <= 1 MiB in production")
     if s.metrics_enabled and len(s.metrics_token)<32:problems.append("EO_METRICS_TOKEN must be set and at least 32 characters when metrics are enabled")
     if s.metrics_token and s.metrics_token in (s.api_key_pepper,s.model_signing_key):problems.append("metrics token must be a distinct secret")
+    problems.extend(validate_db_settings(s))
+    return problems
+
+def validate_db_settings(s: Settings) -> list[str]:
+    problems=[]
+    try:
+        url=make_url(s.database_url.get_secret_value())
+    except Exception:
+        return ["EO_DATABASE_URL is invalid"]
+    if url.get_backend_name()=="sqlite":
+        if not s.allow_sqlite_in_production:problems.append("SQLite is not allowed in production (single-node pilots may set EO_ALLOW_SQLITE_IN_PRODUCTION=true)")
+    elif url.drivername!="postgresql+psycopg":
+        problems.append("EO_DATABASE_URL must use the postgresql+psycopg driver")
+    else:
+        if (url.username or "") in ("","postgres","root","eo_admin","eo_owner"):problems.append("the backend must connect as the least-privilege role (eo_app), not an owner or superuser")
+        if not s.database_password_file and len(url.password or "")<24:problems.append("database password must be >= 24 chars (or use EO_DATABASE_PASSWORD_FILE)")
+        if (url.host or "") not in ("db","localhost","127.0.0.1","") and url.query.get("sslmode") not in ("verify-full","verify-ca"):problems.append("remote PostgreSQL requires sslmode=verify-full (or verify-ca)")
+    if s.migration_database_url.get_secret_value():problems.append("migration credentials must not be present in the backend runtime environment")
+    if s.db_echo:problems.append("EO_DB_ECHO must be false in production")
     return problems
 
 def enforce(s: Settings)->None:

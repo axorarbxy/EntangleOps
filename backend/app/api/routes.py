@@ -9,11 +9,16 @@ from app.core.physics import LinkParams,werner_to_fidelity
 from app.core.sequence_adapter import cross_check_link
 from security.auth import Principal,get_principal,require_role
 from monitoring import metrics as mon
+from app.db.session import run_db
 
 router=APIRouter();ID=r"^[A-Za-z0-9_-]{8,32}$"
 class KeyCreate(BaseModel):
     model_config=ConfigDict(extra="forbid")
     name:str=Field(min_length=1,max_length=64);role:str=Field(pattern=r"^(viewer|operator|admin)$");ttl_days:float|None=Field(default=None,gt=0,le=3650)
+@router.get("/me")
+async def me(p:Principal=Depends(require_role("viewer")))->dict:
+    """Return the non-secret identity and role associated with the API key."""
+    return {"key_id":p.key_id,"name":p.name,"role":p.role}
 @router.get("/health")
 def health():return {"status":"ok"}
 @router.get("/topology")
@@ -24,9 +29,8 @@ def topology(preset:str="metro",principal:Principal=Depends(get_principal)):
 def _budget(c:SimRequest|BenchmarkRequest)->None:
     steps=c.duration_hours*3600/c.dt_s
     if steps>settings.max_steps_per_run or c.scenario.arrival_rate_per_step*steps*c.dt_s/60>settings.max_expected_requests_per_run:raise HTTPException(422,"compute budget exceeded")
-def _active_count(store,owner:str)->int:return sum(1 for r in list(store.runs.values())+list(store.benchmarks.values()) if r["owner"]==owner and r["status"] in ("queued","running"))
-def _queue_check(store)->None:
-    pending=sum(1 for r in list(store.runs.values())+list(store.benchmarks.values()) if r["status"] in ("queued","running"))
+async def _queue_check(store)->None:
+    pending=await run_db(store.count_active_all)
     if pending>=settings.max_concurrent_runs+settings.max_queued_runs:
         try:mon.run_denied.labels("queue_full").inc()
         except Exception:pass
@@ -35,12 +39,16 @@ def _extra_cost(request:Request,principal:Principal,cost:float)->None:
     if not request.app.state.limiter_key.consume(principal.key_id,cost):raise HTTPException(429,"Rate limit exceeded",headers={"Retry-After":"30"})
 @router.post("/simulations",status_code=202,response_model=RunStatus)
 async def start_sim(c:SimRequest,bg:BackgroundTasks,request:Request,p:Principal=Depends(require_role("operator"))):
-    _budget(c);store=request.app.state.store;_queue_check(store)
-    if _active_count(store,p.key_id)>=settings.max_runs_per_key_active:
+    _budget(c);store=request.app.state.store;await _queue_check(store)
+    if await run_db(store.count_active,p.key_id)>=settings.max_runs_per_key_active:
         try:mon.run_denied.labels("quota").inc()
         except Exception:pass
         raise HTTPException(429,"active run quota exceeded")
-    _extra_cost(request,p,4);rid=store.create_run(c,p.key_id);request.app.state.audit.event("run.create",key_id=p.key_id,ip=request.app.state.client_ip(request),path=request.url.path,request_id=request.state.request_id)
+    _extra_cost(request,p,4);rid=await run_db(store.create_run,c,p.key_id,max_active=settings.max_runs_per_key_active,model_id=getattr(request.app.state,"model_id",None))
+    if rid is None:
+        request.app.state.audit.event("run.denied",key_id=p.key_id,reason="quota",path=request.url.path,request_id=request.state.request_id)
+        raise HTTPException(429,"active run quota exceeded")
+    request.app.state.audit.event("run.create",key_id=p.key_id,ip=request.app.state.client_ip(request),path=request.url.path,request_id=request.state.request_id)
     bg.add_task(store.execute_run,rid,request.app.state.predictor);return store.get(rid)
 @router.get("/simulations",response_model=list[RunStatus])
 def list_sim(request:Request,p:Principal=Depends(get_principal)):return request.app.state.store.list_for(p)
@@ -54,22 +62,30 @@ def timeseries(request:Request,rid:str=Path(pattern=ID),fields:str|None=None,str
     r=request.app.state.store.get_for(p,rid)
     if not r:request.app.state.audit.event("run.denied",key_id=p.key_id,path=request.url.path,request_id=request.state.request_id,reason="not_owner");raise HTTPException(404,"not found")
     if r["status"]!="done":raise HTTPException(409,"results not ready")
-    rows=r["records"][::stride];keys=fields.split(",") if fields else ["step","t_s","active","arrivals","admitted","blocked","reroutes","mean_fidelity","useful_rate_pairs_s","raw_rate_pairs_s","sla_violations"]
-    if any(k not in (rows[0] if rows else {}) for k in keys):raise HTTPException(422,"invalid fields")
-    return {k:[row[k] for row in rows] for k in keys}
+    keys=fields.split(",") if fields else ["step","t_s","active","arrivals","admitted","blocked","reroutes","mean_fidelity","useful_rate_pairs_s","raw_rate_pairs_s","sla_violations"]
+    from app.db.repos.runs import COLUMNS
+    if any(k not in COLUMNS for k in keys):raise HTTPException(422,"invalid fields")
+    return request.app.state.store.repo.timeseries(rid,keys,stride)
 @router.post("/benchmarks",status_code=202)
 async def start_bench(c:BenchmarkRequest,bg:BackgroundTasks,request:Request,p:Principal=Depends(require_role("operator"))):
-    _budget(c);store=request.app.state.store;_queue_check(store)
-    if _active_count(store,p.key_id)>=settings.max_runs_per_key_active:
+    _budget(c);store=request.app.state.store;await _queue_check(store)
+    if await run_db(store.count_active,p.key_id)>=settings.max_runs_per_key_active:
         try:mon.run_denied.labels("quota").inc()
         except Exception:pass
         raise HTTPException(429,"active run quota exceeded")
-    _extra_cost(request,p,9);bid=store.create_benchmark(c,p.key_id);request.app.state.audit.event("benchmark.create",key_id=p.key_id,ip=request.app.state.client_ip(request),path=request.url.path,request_id=request.state.request_id)
+    _extra_cost(request,p,9);bid=await run_db(store.create_benchmark,c,p.key_id,getattr(request.app.state,"model_id",None),settings.max_runs_per_key_active)
+    if bid is None:
+        request.app.state.audit.event("run.denied",key_id=p.key_id,reason="quota",path=request.url.path,request_id=request.state.request_id)
+        raise HTTPException(429,"active run quota exceeded")
+    request.app.state.audit.event("benchmark.create",key_id=p.key_id,ip=request.app.state.client_ip(request),path=request.url.path,request_id=request.state.request_id)
     bg.add_task(store.execute_benchmark,bid,request.app.state.predictor);return {"id":bid,"status":"queued"}
+@router.get("/benchmarks")
+def list_benchmarks(request:Request,p:Principal=Depends(get_principal)):
+    return request.app.state.store.list_benchmarks_for(p)
 @router.get("/benchmarks/{bid}")
 def get_bench(request:Request,bid:str=Path(pattern=ID),p:Principal=Depends(get_principal)):
-    b=request.app.state.store.benchmarks.get(bid)
-    if not b or (p.role!="admin" and b["owner"]!=p.key_id):request.app.state.audit.event("run.denied",key_id=p.key_id,path=request.url.path);raise HTTPException(404,"not found")
+    b=request.app.state.store.get_benchmark_for(p,bid)
+    if not b:request.app.state.audit.event("run.denied",key_id=p.key_id,path=request.url.path);raise HTTPException(404,"not found")
     return b
 @router.post("/predict")
 def predict(c:PredictRequest,request:Request,p:Principal=Depends(get_principal)):

@@ -13,6 +13,7 @@ COPY backend/app ./app
 COPY security ./security
 COPY monitoring ./monitoring
 COPY backend/scripts ./scripts
+COPY database ./database
 RUN mkdir -p /app/data && chown -R app:app /app/data
 USER app
 EXPOSE 8000

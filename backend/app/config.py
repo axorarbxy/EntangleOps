@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -49,6 +50,22 @@ class Settings(BaseSettings):
     loop_lag_interval_s: float = 0.5
     otel_enabled: bool = False
     otel_endpoint: str = ""
+    database_url: SecretStr = SecretStr("sqlite:///./data/entangleops.db")
+    database_password_file: str = ""
+    migration_database_url: SecretStr = SecretStr("")
+    migration_password_file: str = ""
+    allow_sqlite_in_production: bool = False
+    db_auto_migrate: bool = True
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
+    db_pool_timeout_s: int = 10
+    db_pool_recycle_s: int = 1800
+    db_statement_timeout_ms: int = 5000
+    db_echo: bool = False
+    key_cache_ttl_s: float = 5.0
+    run_lease_s: int = 60
+    db_maintenance_interval_s: int = 30
+    max_stored_benchmarks: int = 200
 
 class ScenarioConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)

@@ -8,8 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.routes import router
 from app.api.ws import router as ws_router
-from app.core.predictor import FidelityPredictor
+from app.core.predictor import FidelityPredictor,set_audit_callback
 from app.services.runner import RunStore
+from app.db.migrate import schema_state, upgrade_to_head
+from app.db.instrument import instrument_pool
+from app.db.repos.runs import RunRepo
+from app.db.repos.model_registry import ModelRegistry
+from app.db.session import make_engine, make_session_factory, resolve_url
 from security.validation import enforce,InsecureConfigError
 from security.keys import KeyStore
 from security.audit import AuditLog
@@ -22,43 +27,67 @@ from monitoring.health import router as health_router
 from monitoring.middleware import MetricsMiddleware
 from monitoring.logging_config import configure_logging
 from monitoring.audit_hooks import on_audit_event
-from monitoring.tasks import loop_lag_task,audit_verify_task
+from monitoring.tasks import loop_lag_task,audit_verify_task,db_maintenance_task
 from monitoring import metrics as mon
 import asyncio
+from sqlalchemy.exc import SQLAlchemyError
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
     configure_logging(settings.log_level,settings.log_json)
     try:enforce(settings)
     except InsecureConfigError:
-        AuditLog(settings.audit_path).event("config.invalid",env=settings.env)
+        logging.getLogger(__name__).error("config.invalid env=%s", settings.env)
         raise
-    app.state.store=RunStore()
-    app.state.audit=AuditLog(settings.audit_path)
+    engine=make_engine(resolve_url(settings.database_url.get_secret_value(),settings.database_password_file),
+        pool_size=settings.db_pool_size,max_overflow=settings.db_max_overflow,pool_timeout_s=settings.db_pool_timeout_s,
+        pool_recycle_s=settings.db_pool_recycle_s,statement_timeout_ms=settings.db_statement_timeout_ms,
+        echo=settings.db_echo and settings.env!="production")
+    instrument_pool(engine,settings.db_pool_size+settings.db_max_overflow)
+    if settings.env!="production" and settings.db_auto_migrate:
+        upgrade_to_head(engine)
+    else:
+        current,head=schema_state(engine)
+        if current!=head:
+            engine.dispose()
+            raise RuntimeError("database schema is not at head; run the migrate job")
+    session_factory=make_session_factory(engine)
+    app.state.engine=engine;app.state.session_factory=session_factory
+    repo=RunRepo(session_factory,settings.max_stored_runs,settings.max_stored_benchmarks)
+    app.state.store=RunStore(repo,session_factory)
+    app.state.audit=AuditLog(session_factory)
     app.state.audit.add_listener(on_audit_event)
     if settings.env!="production" and not settings.api_key_pepper:logging.getLogger(__name__).warning("EO_API_KEY_PEPPER is unset; using a development-only fallback pepper")
-    app.state.keystore=KeyStore(settings.keys_path,settings.api_key_pepper or "development-only-pepper")
-    app.state.ticket_service=TicketService(settings.api_key_pepper or settings.model_signing_key or "development-only-ticket-secret",settings.ws_ticket_ttl_s)
+    app.state.keystore=KeyStore(session_factory,settings.api_key_pepper or "development-only-pepper",settings.key_cache_ttl_s)
+    app.state.ticket_service=TicketService(settings.api_key_pepper or settings.model_signing_key or "development-only-ticket-secret",settings.ws_ticket_ttl_s,session_factory)
     app.state.client_ip=make_client_ip(settings.trusted_proxy_count)
     app.state.limiter_key=TokenBucketLimiter(settings.rate_per_key_per_min)
     app.state.limiter_ip=TokenBucketLimiter(settings.rate_per_ip_per_min)
     app.state.limiter_auth_fail=TokenBucketLimiter(settings.rate_auth_fail_per_ip_per_min)
     app.state.ws_counts={}
     app.state.audit.event("startup",env=settings.env)
+    recovered=repo.reap_stale(settings.run_lease_s)
+    if recovered:app.state.audit.event("db.recovered",count=recovered)
+    set_audit_callback(app.state.audit.event)
     app.state.predictor=FidelityPredictor.load_or_train(settings.model_path,settings.forecast_horizon_steps,settings.default_seed)
+    app.state.model_registry=ModelRegistry(session_factory)
+    app.state.model_id=app.state.model_registry.record(settings.model_path,{
+        "horizon_steps":app.state.predictor.horizon_steps,"metrics":app.state.predictor.metrics,
+        "feature_min":app.state.predictor.feature_min,"feature_max":app.state.predictor.feature_max})
     mon.build_info.labels("1.0.0",settings.env).set(1);mon.queue_capacity.set(settings.max_queued_runs)
     if settings.env!="production" and settings.metrics_enabled and not settings.metrics_token:logging.getLogger(__name__).warning("EO_METRICS_TOKEN is unset; /metrics is open in development")
-    tasks=[asyncio.create_task(loop_lag_task(settings.loop_lag_interval_s)),asyncio.create_task(audit_verify_task(app.state.audit,settings.audit_verify_interval_s))]
+    tasks=[asyncio.create_task(loop_lag_task(settings.loop_lag_interval_s)),asyncio.create_task(audit_verify_task(app.state.audit,settings.audit_verify_interval_s)),asyncio.create_task(db_maintenance_task(app,settings.db_maintenance_interval_s,settings.run_lease_s))]
     try:yield
     finally:
         for task in tasks:task.cancel()
         await asyncio.gather(*tasks,return_exceptions=True)
+        engine.dispose()
 
 def create_app()->FastAPI:
     if settings.env=="production":
         try:enforce(settings)
         except InsecureConfigError:
-            AuditLog(settings.audit_path).event("config.invalid",env=settings.env)
+            logging.getLogger(__name__).error("config.invalid env=%s", settings.env)
             raise
     docs=settings.enable_docs
     if settings.env=="production" and os.environ.get("EO_ENABLE_DOCS","").lower()!="true":docs=False
@@ -78,6 +107,10 @@ def create_app()->FastAPI:
     @app.exception_handler(RequestValidationError)
     async def validation_error(request:Request,exc:RequestValidationError):
         return JSONResponse({"error":"validation","fields":[{"loc":e.get("loc",[]),"msg":e.get("msg","invalid")} for e in exc.errors()]},status_code=422)
+    @app.exception_handler(SQLAlchemyError)
+    async def database_error(request:Request,exc:SQLAlchemyError):
+        logging.getLogger(__name__).error("Database operation failed request_id=%s error_type=%s",getattr(request.state,"request_id","unknown"),type(exc).__name__)
+        return JSONResponse({"error":"database_unavailable","request_id":getattr(request.state,"request_id","unknown")},status_code=503,headers={"Retry-After":"5"})
     @app.exception_handler(Exception)
     async def internal_error(request:Request,exc:Exception):
         logging.getLogger(__name__).exception("Unhandled request exception",exc_info=exc)

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 from dataclasses import dataclass
 from fastapi import Depends,HTTPException,Request
 from fastapi.security import APIKeyHeader
@@ -17,7 +18,7 @@ async def get_principal(request:Request,key:str|None=Depends(api_key_header))->P
         app.state.audit.event("auth.throttled",ip=ip);raise HTTPException(429,"Too many failed attempts",headers={"Retry-After":"60"})
     if not key:
         app.state.limiter_auth_fail.consume(ip);raise _deny(request,"missing_key")
-    rec=app.state.keystore.verify(key)
+    rec=await asyncio.to_thread(app.state.keystore.verify,key)
     if rec is None:
         app.state.limiter_auth_fail.consume(ip);raise _deny(request,"invalid_key")
     if not app.state.limiter_key.consume(rec.key_id):
