@@ -8,7 +8,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+_repo_root = Path(__file__).resolve().parents[2]
+_backend_root = _repo_root / "backend"
+for _path in (_repo_root, _backend_root):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 import numpy as np
 
@@ -21,7 +25,7 @@ from app.ml.explain import model_card
 from app.db.repos.model_registry import ModelRegistry
 from app.db.repos.ml_experiments import ExperimentRepo
 from app.ml.evaluate import evaluate_dataset
-from scripts._ml_cli import audit, dump_report, git_version, open_ml_db, require_signing_key
+from machine_learning.scripts._ml_cli import audit, dump_report, git_version, open_ml_db, require_signing_key
 
 
 def train(args):

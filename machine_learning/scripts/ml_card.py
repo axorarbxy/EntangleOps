@@ -6,7 +6,11 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+_repo_root = Path(__file__).resolve().parents[2]
+_backend_root = _repo_root / "backend"
+for _path in (_repo_root, _backend_root):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 from app.core.predictor import FidelityPredictor
 from app.db.repos.ml_experiments import ExperimentRepo
@@ -14,7 +18,7 @@ from app.db.repos.model_registry import ModelRegistry
 from app.ml.datagen import suite
 from app.ml.evaluate import evaluate_dataset
 from app.ml.explain import model_card
-from scripts._ml_cli import candidate_path, dump_report, open_ml_db, require_signing_key
+from machine_learning.scripts._ml_cli import candidate_path, dump_report, open_ml_db, require_signing_key
 
 
 def main():

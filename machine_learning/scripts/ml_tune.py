@@ -11,7 +11,11 @@ from scipy.stats import loguniform
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.model_selection import GroupKFold, ParameterSampler
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+_repo_root = Path(__file__).resolve().parents[2]
+_backend_root = _repo_root / "backend"
+for _path in (_repo_root, _backend_root):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 from app.config import settings
 from app.core.predictor import generate_training_data
@@ -20,7 +24,7 @@ from app.ml.datagen import generate_dataset
 from app.ml.features import physics_w_np
 from app.ml.profiles import PROFILES
 from app.db.repos.ml_experiments import ExperimentRepo
-from scripts._ml_cli import dump_report, open_ml_db, require_signing_key
+from machine_learning.scripts._ml_cli import dump_report, open_ml_db, require_signing_key
 
 
 def main():

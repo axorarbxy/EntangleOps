@@ -3,7 +3,14 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
+
+_repo_root = Path(__file__).resolve().parents[2]
+_backend_root = _repo_root / "backend"
+for _path in (_repo_root, _backend_root):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 from app.config import settings
 from app.db.runtime import open_database

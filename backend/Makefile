@@ -1,7 +1,7 @@
 install:
 	pip install -r requirements-dev.txt
 train:
-	python scripts/train_predictor.py
+	python ../machine_learning/scripts/train_predictor.py
 run:
 	uvicorn app.main:app --reload --port 8000 --no-access-log
 test:
@@ -25,23 +25,23 @@ db-keys:
 db-audit-verify:
 	python scripts/verify_audit.py
 db-dataset-build:
-	python scripts/build_dataset.py build --name $(name)
+	python ../machine_learning/scripts/build_dataset.py build --name $(name)
 ml-train:
-	python scripts/ml_train.py $(ARGS)
+	python ../machine_learning/scripts/ml_train.py $(ARGS)
 ml-eval:
-	python scripts/ml_eval.py $(ARGS)
+	python ../machine_learning/scripts/ml_eval.py $(ARGS)
 ml-tune:
-	python scripts/ml_tune.py $(ARGS)
+	python ../machine_learning/scripts/ml_tune.py $(ARGS)
 ml-ablation:
-	python scripts/ml_ablation.py $(ARGS)
+	python ../machine_learning/scripts/ml_ablation.py $(ARGS)
 ml-policy-study:
-	python scripts/ml_policy_study.py $(ARGS)
+	python ../machine_learning/scripts/ml_policy_study.py $(ARGS)
 ml-card:
-	python scripts/ml_card.py $(ARGS)
+	python ../machine_learning/scripts/ml_card.py $(ARGS)
 ml-promote:
-	python scripts/ml_promote.py $(ARGS)
+	python ../machine_learning/scripts/ml_promote.py $(ARGS)
 test-ml:
-	pytest -q tests/test_ml.py
+	pytest -q ../machine_learning/tests/test_ml.py
 monitoring-up:
 	cd .. && docker compose --env-file backend/.env -f docker-compose.yml -f docker-compose.monitoring.yml up --build -d
 monitoring-down:

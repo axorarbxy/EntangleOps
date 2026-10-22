@@ -19,8 +19,8 @@ For PostgreSQL, run `python backend/scripts/gen_db_secrets.py`, create `backend/
 
 - `python backend/scripts/manage_keys.py create --name ... --role ...` and `list`/`revoke` use the configured database.
 - `python backend/scripts/verify_audit.py` verifies the full database audit chain.
-- `python backend/scripts/build_dataset.py build --name <name>` creates a deterministic training dataset; `list`, `export`, `verify`, and `delete` operate on stored datasets.
-- `python backend/scripts/train_predictor.py --from-dataset <id>` trains from a stored dataset and registers the signed model's metadata. Model bytes remain on disk at `EO_MODEL_PATH`.
+- `python machine_learning/scripts/build_dataset.py build --name <name>` creates a deterministic training dataset; `list`, `export`, `verify`, and `delete` operate on stored datasets.
+- `python machine_learning/scripts/train_predictor.py --from-dataset <id>` trains from a stored dataset and registers the signed model's metadata. Model bytes remain on disk at `EO_MODEL_PATH`.
 - `python backend/scripts/backup_sqlite.py` uses SQLite's online backup API. PostgreSQL backups should use `pg_dump -Fc` from the database container.
 - Legacy JSON files can be imported without deleting them with `python backend/scripts/import_legacy_files.py --data-dir ./data [--dry-run]`.
 
