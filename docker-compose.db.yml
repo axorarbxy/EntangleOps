@@ -22,7 +22,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    command: ["python", "-m", "alembic", "-c", "database/alembic.ini", "upgrade", "head"]
+    command: ["python", "-m", "scripts.migrate_db"]
     environment:
       EO_ENV: production
       EO_MIGRATION_DATABASE_URL: postgresql+psycopg://eo_owner@db:5432/entangleops
