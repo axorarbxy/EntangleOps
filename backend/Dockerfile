@@ -10,6 +10,7 @@ RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app
 WORKDIR /app
 COPY --from=build /install /usr/local
 COPY backend/app ./app
+COPY machine_learning ./machine_learning
 COPY security ./security
 COPY monitoring ./monitoring
 COPY backend/scripts ./scripts

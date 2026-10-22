@@ -1,0 +1,389 @@
+{
+  "model": "two-hidden-layer NumPy MLP regressor",
+  "target": "one-way PTP path delay in microseconds: t2-t1 for sync, t4-t3 for delay_req",
+  "source": "SLATE-PTP CSV tracks in the repository data/ folder",
+  "features": [
+    "progress",
+    "duration_fraction",
+    "load_low_fraction",
+    "load_high_fraction",
+    "mode_M1",
+    "mode_M2",
+    "mode_M3",
+    "traffic_IMIX",
+    "traffic_LP",
+    "traffic_MTU",
+    "traffic_SP",
+    "traffic_NO",
+    "message_sync",
+    "message_delay_req",
+    "lag1_delay_us",
+    "lag5_mean_delay_us",
+    "lag5_std_delay_us",
+    "has_lag"
+  ],
+  "split": "grouped by whole CSV file; SHA-256 filename split, 80/20 target",
+  "random_seed": 20261022,
+  "files_total": 45,
+  "files_train": [
+    "M1-L0-T60-TMNO.csv",
+    "M1-L10-T60-TMIMIX.csv",
+    "M1-L10-T60-TMLP.csv",
+    "M1-L10-T60-TMMTU.csv",
+    "M1-L10-T60-TMSP.csv",
+    "M1-L20-T60-TMIMIX.csv",
+    "M1-L20-T60-TMMTU.csv",
+    "M1-L20-T60-TMSP.csv",
+    "M1-L30-T60-TMLP.csv",
+    "M1-L30-T60-TMMTU.csv",
+    "M1-L30-T60-TMSP.csv",
+    "M1-L40-T60-TMLP.csv",
+    "M1-L40-T60-TMSP.csv",
+    "M1-L50-T60-TMIMIX.csv",
+    "M1-L50-T60-TMLP.csv",
+    "M1-L50-T60-TMMTU.csv",
+    "M1-L60-T60-TMIMIX.csv",
+    "M1-L60-T60-TMLP.csv",
+    "M1-L60-T60-TMSP.csv",
+    "M1-L70-T60-TMIMIX.csv",
+    "M1-L70-T60-TMMTU.csv",
+    "M1-L70-T60-TMSP.csv",
+    "M1-L80-T60-TMSP.csv",
+    "M1-L90-T60-TMLP.csv",
+    "M1-L90-T60-TMMTU.csv",
+    "M1-L90-T60-TMSP.csv",
+    "M2-L1090-T30-TMIMIX.csv",
+    "M2-L1090-T30-TMLP.csv",
+    "M2-L1090-T30-TMMTU.csv",
+    "M2-L1090-T30-TMSP.csv",
+    "M3-L1090-T900-TMIMIX.csv",
+    "M3-L1090-T900-TMMTU.csv",
+    "M3-L1090-T900-TMSP.csv"
+  ],
+  "files_validation": [
+    "M1-L20-T60-TMLP.csv",
+    "M1-L30-T60-TMIMIX.csv",
+    "M1-L40-T60-TMIMIX.csv",
+    "M1-L40-T60-TMMTU.csv",
+    "M1-L50-T60-TMSP.csv",
+    "M1-L60-T60-TMMTU.csv",
+    "M1-L70-T60-TMLP.csv",
+    "M1-L80-T60-TMIMIX.csv",
+    "M1-L80-T60-TMLP.csv",
+    "M1-L80-T60-TMMTU.csv",
+    "M1-L90-T60-TMIMIX.csv",
+    "M3-L1090-T900-TMLP.csv"
+  ],
+  "rows_train": 130482,
+  "rows_validation": 48000,
+  "invalid_rows_skipped": 1,
+  "max_samples_per_file": 4000,
+  "target_train_mean_us": 9.13009262084961,
+  "target_validation_min_us": 8.083000183105469,
+  "target_validation_max_us": 24.5939998626709,
+  "model_validation": {
+    "mae_us": 0.8831137418746948,
+    "rmse_us": 1.2432867288589478,
+    "r2": 0.2983132004737854
+  },
+  "mean_baseline_validation": {
+    "mae_us": 1.0764620304107666,
+    "rmse_us": 1.5186212062835693,
+    "r2": -0.046886563301086426
+  },
+  "epochs_completed": 16,
+  "training_history": [
+    {
+      "epoch": 1,
+      "validation_mse_us2": 0.4314195513725281
+    },
+    {
+      "epoch": 2,
+      "validation_mse_us2": 0.4089387059211731
+    },
+    {
+      "epoch": 3,
+      "validation_mse_us2": 0.401355504989624
+    },
+    {
+      "epoch": 4,
+      "validation_mse_us2": 0.39624857902526855
+    },
+    {
+      "epoch": 5,
+      "validation_mse_us2": 0.393597811460495
+    },
+    {
+      "epoch": 6,
+      "validation_mse_us2": 0.3931601643562317
+    },
+    {
+      "epoch": 7,
+      "validation_mse_us2": 0.38818952441215515
+    },
+    {
+      "epoch": 8,
+      "validation_mse_us2": 0.38862016797065735
+    },
+    {
+      "epoch": 9,
+      "validation_mse_us2": 0.38941675424575806
+    },
+    {
+      "epoch": 10,
+      "validation_mse_us2": 0.3879704475402832
+    },
+    {
+      "epoch": 11,
+      "validation_mse_us2": 0.38656991720199585
+    },
+    {
+      "epoch": 12,
+      "validation_mse_us2": 0.38676464557647705
+    },
+    {
+      "epoch": 13,
+      "validation_mse_us2": 0.38764306902885437
+    },
+    {
+      "epoch": 14,
+      "validation_mse_us2": 0.39237841963768005
+    },
+    {
+      "epoch": 15,
+      "validation_mse_us2": 0.38556399941444397
+    },
+    {
+      "epoch": 16,
+      "validation_mse_us2": 0.3821638524532318
+    }
+  ],
+  "per_file": {
+    "M1-L0-T60-TMNO.csv": {
+      "valid_rows": 7218,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L10-T60-TMIMIX.csv": {
+      "valid_rows": 7254,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L10-T60-TMLP.csv": {
+      "valid_rows": 7187,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L10-T60-TMMTU.csv": {
+      "valid_rows": 7190,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L10-T60-TMSP.csv": {
+      "valid_rows": 7225,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L20-T60-TMIMIX.csv": {
+      "valid_rows": 7189,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L20-T60-TMLP.csv": {
+      "valid_rows": 7229,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L20-T60-TMMTU.csv": {
+      "valid_rows": 7218,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L20-T60-TMSP.csv": {
+      "valid_rows": 7156,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L30-T60-TMIMIX.csv": {
+      "valid_rows": 7262,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L30-T60-TMLP.csv": {
+      "valid_rows": 7207,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L30-T60-TMMTU.csv": {
+      "valid_rows": 7196,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L30-T60-TMSP.csv": {
+      "valid_rows": 7138,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L40-T60-TMIMIX.csv": {
+      "valid_rows": 7174,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L40-T60-TMLP.csv": {
+      "valid_rows": 7127,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L40-T60-TMMTU.csv": {
+      "valid_rows": 7153,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L40-T60-TMSP.csv": {
+      "valid_rows": 7229,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L50-T60-TMIMIX.csv": {
+      "valid_rows": 7212,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L50-T60-TMLP.csv": {
+      "valid_rows": 7162,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L50-T60-TMMTU.csv": {
+      "valid_rows": 7212,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L50-T60-TMSP.csv": {
+      "valid_rows": 7170,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L60-T60-TMIMIX.csv": {
+      "valid_rows": 7272,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L60-T60-TMLP.csv": {
+      "valid_rows": 7143,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L60-T60-TMMTU.csv": {
+      "valid_rows": 7152,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L60-T60-TMSP.csv": {
+      "valid_rows": 7236,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L70-T60-TMIMIX.csv": {
+      "valid_rows": 7199,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L70-T60-TMLP.csv": {
+      "valid_rows": 7239,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L70-T60-TMMTU.csv": {
+      "valid_rows": 7213,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L70-T60-TMSP.csv": {
+      "valid_rows": 7278,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L80-T60-TMIMIX.csv": {
+      "valid_rows": 7213,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L80-T60-TMLP.csv": {
+      "valid_rows": 7151,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L80-T60-TMMTU.csv": {
+      "valid_rows": 7250,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L80-T60-TMSP.csv": {
+      "valid_rows": 7218,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L90-T60-TMIMIX.csv": {
+      "valid_rows": 7191,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L90-T60-TMLP.csv": {
+      "valid_rows": 7144,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L90-T60-TMMTU.csv": {
+      "valid_rows": 7183,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M1-L90-T60-TMSP.csv": {
+      "valid_rows": 7225,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M2-L1090-T30-TMIMIX.csv": {
+      "valid_rows": 3659,
+      "used_rows": 3659,
+      "invalid_rows": 0
+    },
+    "M2-L1090-T30-TMLP.csv": {
+      "valid_rows": 3612,
+      "used_rows": 3612,
+      "invalid_rows": 0
+    },
+    "M2-L1090-T30-TMMTU.csv": {
+      "valid_rows": 3602,
+      "used_rows": 3602,
+      "invalid_rows": 0
+    },
+    "M2-L1090-T30-TMSP.csv": {
+      "valid_rows": 3609,
+      "used_rows": 3609,
+      "invalid_rows": 0
+    },
+    "M3-L1090-T900-TMIMIX.csv": {
+      "valid_rows": 108015,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M3-L1090-T900-TMLP.csv": {
+      "valid_rows": 108223,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M3-L1090-T900-TMMTU.csv": {
+      "valid_rows": 107901,
+      "used_rows": 4000,
+      "invalid_rows": 0
+    },
+    "M3-L1090-T900-TMSP.csv": {
+      "valid_rows": 107644,
+      "used_rows": 4000,
+      "invalid_rows": 1
+    }
+  },
+  "model_file": "machine_learning\\models\\slate_ptp_delay_mlp.npz"
+}

@@ -4,6 +4,16 @@ export const Role = z.enum(['viewer', 'operator', 'admin', 'unknown']);
 export const Me = z
   .object({ key_id: z.string(), name: z.string(), role: Role })
   .passthrough();
+export const PtpDelayEstimate = z.object({
+  predicted_delay_us: z.number(),
+  model: z.string(),
+  validation_mae_us: z.number(),
+  validation_r2: z.number(),
+  validation_rows: z.number(),
+  validation_scope: z.string(),
+  target: z.string(),
+  history_count: z.number(),
+});
 export const LinkInfo = z
   .object({
     link_id: z.string().optional(),

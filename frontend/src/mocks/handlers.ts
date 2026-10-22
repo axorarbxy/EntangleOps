@@ -176,6 +176,7 @@ export async function demoResponse(
   if (path === '/api/v1/benchmarks/demo-benchmark-001') return benchmarks;
   if (path === '/api/v1/predict') return { werner: 0.92, fidelity: 0.94 };
   if (path === '/api/v1/ml/model') return { id: 1, profile: 'baseline_v1', status: 'champion', feature_schema: 'v1', target_mode: 'direct', horizon_steps: 5, sha256: 'demo-model-digest', sklearn_version: '1.x', trained_at: new Date().toISOString(), metrics: { r2_test: 0.9, mae_test: 0.01 }, calibration: null, card: null };
+  if (path === '/api/v1/ml/ptp-delay') return { predicted_delay_us: 8.14, model: 'SLATE-PTP one-way delay MLP', validation_mae_us: 0.8831137, validation_r2: 0.298313, validation_rows: 48000, validation_scope: '12 held-out SLATE-PTP CSV runs', target: 'sync: t2 − t1; delay_req: t4 − t3', history_count: (body as { recent_same_message_delays_us?: number[] } | undefined)?.recent_same_message_delays_us?.length ?? 0 };
   if (path === '/api/v1/ml/experiments') return [];
   if (path.startsWith('/api/v1/ml/experiments/')) return { id: path.split('/').at(-1), kind: 'evaluation', name: 'Demo evaluation', profile: 'baseline_v1', model_id: 1, created_at: new Date().toISOString(), code_version: 'demo', config: {}, metrics: {}, slices: {} };
   if (path === '/api/v1/ws-ticket')

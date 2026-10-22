@@ -39,6 +39,22 @@ export const createBenchmark = (body: z.input<typeof S.BenchmarkRequest>) =>
 export const benchmarks = () =>
   request('/api/v1/benchmarks', { schema: z.array(S.Benchmark) });
 export const mlModel = () => request('/api/v1/ml/model', { schema: S.MlModel.nullable() });
+export type PtpDelayRequest = {
+  progress: number;
+  mode: 'M1' | 'M2' | 'M3';
+  load_low_pct: number;
+  load_high_pct: number;
+  duration_minutes: number;
+  traffic_model: 'IMIX' | 'LP' | 'MTU' | 'SP' | 'NO';
+  message_type: 'sync' | 'delay_req';
+  recent_same_message_delays_us: number[];
+};
+export const estimatePtpDelay = (body: PtpDelayRequest) =>
+  request('/api/v1/ml/ptp-delay', {
+    method: 'POST',
+    body,
+    schema: S.PtpDelayEstimate,
+  });
 export const mlExperiments = (kind?: string, limit = 50) => {
   const query = new URLSearchParams({ limit: String(limit) });
   if (kind) query.set('kind', kind);

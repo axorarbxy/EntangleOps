@@ -1,11 +1,74 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { Activity, ArrowRight, Clock3, Sparkles } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Bar, BarChart, CartesianGrid, ComposedChart, ErrorBar, Line, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
-import { mlExperiment, mlExperiments, mlModel } from '../api/endpoints';
+import { estimatePtpDelay, mlExperiment, mlExperiments, mlModel, type PtpDelayRequest } from '../api/endpoints';
 
 const caption = 'Simulated data from an illustrative physics model.';
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
 const label = (value: unknown) => typeof value === 'number' ? value.toFixed(4) : '—';
+
+function PtpDelayPlanner() {
+  const [settings, setSettings] = useState<PtpDelayRequest>({
+    progress: 0.5,
+    mode: 'M2',
+    load_low_pct: 20,
+    load_high_pct: 60,
+    duration_minutes: 30,
+    traffic_model: 'IMIX',
+    message_type: 'sync',
+    recent_same_message_delays_us: [],
+  });
+  const [historyText, setHistoryText] = useState('');
+  const [delayBudget, setDelayBudget] = useState(10);
+  const estimate = useMutation({ mutationFn: estimatePtpDelay });
+  const update = <K extends keyof PtpDelayRequest>(key: K, value: PtpDelayRequest[K]) =>
+    setSettings((current) => ({ ...current, [key]: value }));
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const history = historyText.trim()
+      ? historyText.split(',').map((value) => Number(value.trim()))
+      : [];
+    if (history.length > 5 || history.some((value) => !Number.isFinite(value) || value <= 0)) {
+      estimate.reset();
+      return;
+    }
+    estimate.mutate({ ...settings, recent_same_message_delays_us: history });
+  };
+  const result = estimate.data;
+  return <section className="panel ptp-planner">
+    <div className="ptp-hero">
+      <div className="ptp-hero-copy">
+        <div className="ptp-kicker"><Sparkles size={14}/> FIELD TIMING WORKBENCH</div>
+        <h2>Plan a PTP timing run</h2>
+        <p>Explore how traffic mix and load may affect one-way timing delay before you configure a run. Add recent readings to ground the estimate in your current session.</p>
+        <div className="ptp-context"><Activity size={16}/><span><b>Measured against SLATE-PTP runs</b><small>Research dataset · held-out runs · no live network connection</small></span></div>
+      </div>
+      <div className="ptp-hero-stat"><span>VALIDATION MAE</span><b>0.88 <small>µs</small></b><small>48,000 measurements · 12 held-out runs</small></div>
+    </div>
+    <form onSubmit={submit}>
+      <div className="ptp-form-grid">
+        <label className="form-field">Experiment mode<select value={settings.mode} onChange={(e) => update('mode', e.target.value as PtpDelayRequest['mode'])}><option value="M1">M1</option><option value="M2">M2</option><option value="M3">M3</option></select></label>
+        <label className="form-field">Traffic mix<select value={settings.traffic_model} onChange={(e) => update('traffic_model', e.target.value as PtpDelayRequest['traffic_model'])}><option value="IMIX">IMIX · mixed packet sizes</option><option value="LP">LP · large packets</option><option value="MTU">MTU · maximum frames</option><option value="SP">SP · small packets</option><option value="NO">NO · no background traffic</option></select></label>
+        <label className="form-field">PTP message<select value={settings.message_type} onChange={(e) => update('message_type', e.target.value as PtpDelayRequest['message_type'])}><option value="sync">Sync · t2 − t1</option><option value="delay_req">Delay request · t4 − t3</option></select></label>
+        <label className="form-field">Run duration <small>1–900 minutes</small><input type="number" min="1" max="900" value={settings.duration_minutes} onChange={(e) => update('duration_minutes', Number(e.target.value))}/></label>
+        <label className="form-field">Traffic load range <small>Low and high percent</small><div className="ptp-dual-input"><input aria-label="Low traffic load percent" type="number" min="0" max="100" value={settings.load_low_pct} onChange={(e) => update('load_low_pct', Number(e.target.value))}/><span>to</span><input aria-label="High traffic load percent" type="number" min="0" max="100" value={settings.load_high_pct} onChange={(e) => update('load_high_pct', Number(e.target.value))}/></div></label>
+        <label className="form-field">Run progress <small>Where should the estimate land?</small><div className="ptp-progress"><input type="range" min="0" max="100" value={settings.progress * 100} onChange={(e) => update('progress', Number(e.target.value) / 100)}/><b>{Math.round(settings.progress * 100)}%</b></div></label>
+        <label className="form-field">Your one-way delay budget <small>Planning target in microseconds</small><input type="number" min="0.01" max="1000" step="0.1" required value={delayBudget} onChange={(e) => setDelayBudget(Number(e.target.value))}/></label>
+        <label className="form-field span-2">Recent {settings.message_type === 'sync' ? 'Sync' : 'Delay request'} delays in µs <small>Optional · up to five, comma separated, oldest first</small><input placeholder="e.g. 7.8, 8.1, 7.9" value={historyText} onChange={(e) => setHistoryText(e.target.value)}/></label>
+      </div>
+      {settings.load_low_pct > settings.load_high_pct && <p className="ptp-error" role="alert">Low load must be less than or equal to high load.</p>}
+      {historyText && (historyText.split(',').length > 5 || historyText.split(',').some((v) => !Number.isFinite(Number(v.trim())) || Number(v.trim()) <= 0)) && <p className="ptp-error" role="alert">Enter up to five positive delay values, separated by commas.</p>}
+      {estimate.isError && <p className="ptp-error" role="alert">Could not estimate this scenario. {estimate.error instanceof Error ? estimate.error.message : 'Check your connection and try again.'}</p>}
+      <div className="ptp-submit-row"><span><Clock3 size={14}/> Estimate from the trained model; usually returns instantly.</span><button className="primary-button" disabled={estimate.isPending || !Number.isFinite(delayBudget) || delayBudget < 0.01 || delayBudget > 1000 || settings.load_low_pct > settings.load_high_pct || (historyText !== '' && (historyText.split(',').length > 5 || historyText.split(',').some((v) => !Number.isFinite(Number(v.trim())) || Number(v.trim()) <= 0)))}>{estimate.isPending ? 'Estimating…' : 'Estimate one-way delay'} <ArrowRight size={15}/></button></div>
+    </form>
+    {result && <div className="ptp-result" aria-live="polite">
+      <div className="ptp-result-heading"><span>SCENARIO ESTIMATE</span><small>{result.history_count ? `Personalized with ${result.history_count} recent readings` : 'Scenario-only estimate'}</small></div>
+      <div className="ptp-result-body"><div className="ptp-result-value">{result.predicted_delay_us.toFixed(2)} <small>µs</small><span>predicted one-way delay</span><b className={`ptp-budget-check ${result.predicted_delay_us <= delayBudget ? 'within' : 'over'}`}>{result.predicted_delay_us <= delayBudget ? 'Within' : 'Over'} your {delayBudget.toFixed(1)} µs planning budget</b></div><div className="ptp-result-detail"><b>How to read this</b><p>The model estimates {settings.message_type === 'sync' ? 'Sync path delay (t2 − t1)' : 'Delay request path delay (t4 − t3)'} for the selected traffic profile. Its typical absolute error on held-out runs was {result.validation_mae_us.toFixed(2)} µs; that is a dataset-level score, not a per-prediction confidence interval.</p><small>Validation MAE · {result.validation_scope}</small></div></div>
+    </div>}
+    <p className="ptp-footnote">Use this for scenario exploration and experiment planning. The model learned from recorded SLATE-PTP conditions; performance outside those configurations is unknown, and this estimate is not a live measurement or clock-accuracy guarantee.</p>
+  </section>;
+}
 
 export function ModelsPage() {
   const model = useQuery({ queryKey: ['ml-model'], queryFn: mlModel, retry: false });
@@ -43,7 +106,8 @@ export function ModelsPage() {
   const latencyRows = Object.entries(record(evaluation.latency_ms)).map(([batch, value]) => ({ batch, point: record(value), interval: record(record(value).interval) }));
   const importanceRows = Object.entries(record(record(evaluation.importance).individual)).map(([feature, value]) => ({ feature, importance: Number(record(value).mean) })).sort((a, b) => b.importance - a.importance);
   return <>
-    <div className="page-heading"><div><div className="eyebrow">GOVERNED ML</div><h1>Models</h1><p>Registry, calibration and experiment evidence for the simulated link-fidelity predictor.</p></div></div>
+    <div className="page-heading"><div><div className="eyebrow">GOVERNED ML</div><h1>Models</h1><p>Explore the trained PTP timing model and review the network fidelity model’s evidence.</p></div></div>
+    <PtpDelayPlanner />
     {!active ? <section className="panel"><div className="panel-heading"><h2>No registered model</h2><p>Train a candidate with the ML CLI to populate the registry.</p></div><div className="ml-empty">The API has not registered an active model yet.</div></section> : <>
       <section className="panel ml-model-card">
         <div className="panel-heading"><div><h2>Active model <span className="ml-champion">CHAMPION</span></h2><p>Integrity digest <code>{active.sha256.slice(0, 12)}</code> · trained {new Date(active.trained_at).toLocaleString()}</p></div></div>
