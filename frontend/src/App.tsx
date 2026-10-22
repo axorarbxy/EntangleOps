@@ -65,10 +65,14 @@ const TimeSeriesChart = lazy(() =>
 const ModelsPage = lazy(() =>
   import('./pages/ModelsPage').then((module) => ({ default: module.ModelsPage })),
 );
+const ScalePlannerPage = lazy(() =>
+  import('./pages/ScalePlannerPage').then((module) => ({ default: module.ScalePlannerPage })),
+);
 
 type PageKey =
   | 'overview'
   | 'network'
+  | 'scale'
   | 'simulate'
   | 'runs'
   | 'run'
@@ -82,6 +86,7 @@ type PageKey =
 const iconMap = {
   overview: Gauge,
   network: Network,
+  scale: Boxes,
   simulate: Play,
   runs: FileClock,
   compare: GitCompareArrows,
@@ -94,6 +99,7 @@ const iconMap = {
 const nav: { id: PageKey; label: string; role?: 'operator' | 'admin' }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'network', label: 'Network' },
+  { id: 'scale', label: 'Scale planner' },
   { id: 'simulate', label: 'Simulate', role: 'operator' },
   { id: 'runs', label: 'Runs' },
   { id: 'compare', label: 'Compare', role: 'operator' },
@@ -324,6 +330,8 @@ export function App() {
             <Overview />
           ) : page === 'network' ? (
             <NetworkPage />
+          ) : page === 'scale' ? (
+            <Suspense fallback={<div className="panel ml-empty">Loading scale planner…</div>}><ScalePlannerPage /></Suspense>
           ) : page === 'simulate' ? (
             <Simulate />
           ) : page === 'runs' ? (
