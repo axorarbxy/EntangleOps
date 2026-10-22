@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 
 from app.config import settings
 from app.core.environment import generate_env
-from app.core.policies import AdaptivePolicy, StaticCPolicy, StaticOPolicy
+from app.core.policies import AdaptivePolicy, StaticCPolicy, StaticOPolicy, make_policy
 from app.core.predictor import FidelityPredictor
 from app.core.requests_gen import generate_requests
 from app.core.simulator import run_simulation
@@ -25,6 +25,7 @@ from app.schemas import BenchmarkRequest, SimRequest
 from monitoring import metrics as mon
 from monitoring.drift import DriftMonitor
 from monitoring.observer import SimObserver
+from app.ml.serving import RowCachePredictor
 
 logger = logging.getLogger(__name__)
 
@@ -124,10 +125,12 @@ class RunStore:
             deadline = time.monotonic() + 3 * settings.run_timeout_s; results = {}
             for pol in (StaticCPolicy(), StaticOPolicy(), AdaptivePolicy()):
                 async with self._semaphore:
-                    observer = SimObserver(pol.name, DriftMonitor(predictor, env, lookup, settings.drift_ewma_alpha, settings.drift_sample_every_steps) if pol.name == "adaptive" and predictor else None)
-                    records, summary = await asyncio.to_thread(run_simulation, pol, env, reqs, lookup, predictor,
+                    run_predictor = self._cached(predictor) if predictor and pol.name == "adaptive" else predictor
+                    observer = SimObserver(pol.name, DriftMonitor(run_predictor, env, lookup, settings.drift_ewma_alpha, settings.drift_sample_every_steps, window_rows=settings.ml_psi_window_rows, min_rows=settings.ml_psi_min_rows) if pol.name == "adaptive" and run_predictor else None)
+                    records, summary = await asyncio.to_thread(run_simulation, pol, env, reqs, lookup, run_predictor,
                         settings.forecast_horizon_steps, settings.k_paths, settings.safety_margin, deadline, observer)
-                    observer.finish(records, summary); results[pol.name] = summary
+                    observer.finish(records, summary)
+                    results[pol.name] = summary
             adaptive = results["adaptive"]; improvement = {}
             for name in ("static_c", "static_o"):
                 base = results[name]
@@ -149,9 +152,17 @@ class RunStore:
         nodes, links = get_preset(c.topology_preset); lookup = link_lookup(links)
         env = generate_env(list(lookup), c.duration_hours, c.dt_s, c.seed, c.scenario)
         reqs = generate_requests(nodes, env.n_steps, c.dt_s, c.seed, c.scenario)
-        policy = {"static_c": StaticCPolicy(), "static_o": StaticOPolicy(), "adaptive": AdaptivePolicy()}[c.policy]
-        observer = SimObserver(policy.name, DriftMonitor(predictor, env, lookup, settings.drift_ewma_alpha, settings.drift_sample_every_steps) if policy.name == "adaptive" and predictor else None)
-        records, summary = run_simulation(policy, env, reqs, lookup, predictor, settings.forecast_horizon_steps,
+        policy = make_policy(c.policy, c.risk_alpha)
+        run_predictor = self._cached(predictor) if predictor and c.policy in {"adaptive", "adaptive_risk"} else predictor
+        observer = SimObserver(policy.name, DriftMonitor(run_predictor, env, lookup, settings.drift_ewma_alpha, settings.drift_sample_every_steps, window_rows=settings.ml_psi_window_rows, min_rows=settings.ml_psi_min_rows) if c.policy in {"adaptive", "adaptive_risk"} and run_predictor else None)
+        records, summary = run_simulation(policy, env, reqs, lookup, run_predictor, settings.forecast_horizon_steps,
                                           settings.k_paths, settings.safety_margin, deadline, observer)
         observer.finish(records, summary)
         return records, summary
+
+    @staticmethod
+    def _cached(predictor):
+        def event(result, rows, seconds, kind):
+            mon.ml_prediction_cache_total.labels(mon.bounded(result, mon.ML_RESULTS)).inc(rows)
+            if result == "miss": mon.ml_inference_seconds.labels(mon.bounded(kind, mon.ML_KINDS)).observe(seconds)
+        return RowCachePredictor(predictor, settings.ml_prediction_cache_rows, event)

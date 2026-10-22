@@ -24,6 +24,11 @@ QUERIES = [
     ("Database errors", 'sum(rate(eo_db_errors_total[5m]))', "reqps"),
     ("Database pool utilization", 'eo_db_pool_checked_out / clamp_min(eo_db_pool_capacity, 1)', "percentunit"),
     ("Database health", 'eo_db_reachable', "short"),
+    ("ML feature PSI", 'max by (feature) (eo_ml_feature_psi)', "short"),
+    ("ML interval coverage", 'eo_ml_interval_coverage', "percentunit"),
+    ("ML interval width", 'eo_ml_interval_width', "short"),
+    ("ML inference p95", 'histogram_quantile(0.95, sum by (le, kind) (rate(eo_ml_inference_seconds_bucket[5m])))', "s"),
+    ("ML prediction cache rows", 'sum by (result) (rate(eo_ml_prediction_cache_total[5m]))', "short"),
 ]
 
 def main() -> None:

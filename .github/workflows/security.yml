@@ -13,6 +13,8 @@ jobs:
       - run: bandit -r backend/app backend/scripts security -ll
       - run: pip-audit -r backend/requirements.txt
       - run: pytest -q backend/tests
+      - name: ML governance tests
+        run: pytest -q backend/tests/test_ml.py
       - run: python backend/scripts/gen_dashboard.py
       - name: Check Prometheus alert rules
         run: docker run --rm --entrypoint=/bin/promtool -v "${{ github.workspace }}:/workspace" prom/prometheus:v2.54.1 check rules /workspace/monitoring/alerts.yml

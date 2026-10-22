@@ -3,6 +3,9 @@ __pycache__/
 .env
 data/*
 !data/.gitkeep
+!data/models/
+data/models/*
+!data/models/.gitkeep
 .pytest_cache/
 *.joblib
 data/keys.json

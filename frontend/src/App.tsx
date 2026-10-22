@@ -9,6 +9,7 @@ import {
   CircleHelp,
   Cloud,
   Command,
+  Cpu,
   FileClock,
   FlaskConical,
   Gauge,
@@ -36,6 +37,7 @@ import {
   createRun,
   crosscheck,
   keys,
+  mlModel,
   predict,
   readiness,
   revokeKey,
@@ -60,6 +62,9 @@ const TimeSeriesChart = lazy(() =>
     default: module.TimeSeriesChart,
   })),
 );
+const ModelsPage = lazy(() =>
+  import('./pages/ModelsPage').then((module) => ({ default: module.ModelsPage })),
+);
 
 type PageKey =
   | 'overview'
@@ -70,6 +75,7 @@ type PageKey =
   | 'compare'
   | 'benchmarks'
   | 'lab'
+  | 'models'
   | 'admin'
   | 'about'
   | 'login';
@@ -81,6 +87,7 @@ const iconMap = {
   compare: GitCompareArrows,
   benchmarks: BarChart3,
   lab: FlaskConical,
+  models: Cpu,
   admin: ShieldCheck,
   about: CircleHelp,
 };
@@ -92,6 +99,7 @@ const nav: { id: PageKey; label: string; role?: 'operator' | 'admin' }[] = [
   { id: 'compare', label: 'Compare', role: 'operator' },
   { id: 'benchmarks', label: 'Benchmarks', role: 'operator' },
   { id: 'lab', label: 'Physics & predictor' },
+  { id: 'models', label: 'Models' },
   { id: 'admin', label: 'Admin', role: 'admin' },
   { id: 'about', label: 'About' },
 ];
@@ -328,6 +336,8 @@ export function App() {
             <Benchmarks />
           ) : page === 'lab' ? (
             <Lab />
+          ) : page === 'models' ? (
+            <Suspense fallback={<div className="panel ml-empty">Loading model workspace…</div>}><ModelsPage /></Suspense>
           ) : page === 'admin' ? (
             <Admin role={principal.role} />
           ) : (
@@ -1094,9 +1104,10 @@ function Range({
 function Simulate() {
   const navigate = useNavigate(),
     principal = useSession((s) => s.principal),
-    [policy, setPolicy] = useState<'adaptive' | 'static_c' | 'static_o'>(
+    [policy, setPolicy] = useState<'adaptive' | 'static_c' | 'static_o' | 'adaptive_risk'>(
       'adaptive',
     ),
+    [riskAlpha, setRiskAlpha] = useState(0.1),
     [preset, setPreset] = useState<'metro' | 'tiny'>('metro'),
     [seed, setSeed] = useState(42),
     [hours, setHours] = useState(24),
@@ -1115,10 +1126,15 @@ function Simulate() {
     onError: (e) =>
       setError(
         e instanceof ApiError
-          ? `${e.message}${e.retryAfterS ? ` — retry in ${e.retryAfterS}s` : ''}${e.requestId ? ` (request ${e.requestId})` : ''}`
+          ? e.status === 409 && e.message === 'model_not_calibrated'
+            ? 'Risk-aware routing is unavailable because the active model has no calibration for that α.'
+            : `${e.message}${e.retryAfterS ? ` — retry in ${e.retryAfterS}s` : ''}${e.requestId ? ` (request ${e.requestId})` : ''}`
           : 'Run could not be started',
       ),
   });
+  const model = useQuery({ queryKey: ['ml-model'], queryFn: mlModel, retry: false });
+  const riskAlphas = model.data?.calibration?.alphas.map(Number).filter((x): x is 0.05 | 0.1 | 0.2 => x === 0.05 || x === 0.1 || x === 0.2) ?? [];
+  const riskEnabled = riskAlphas.length > 0;
   const steps = nSteps(hours, dt),
     requests = expectedRequests(arrival, hours, dt),
     invalid = steps > 5760 || requests > 20000;
@@ -1129,6 +1145,7 @@ function Simulate() {
     setError('');
     const body = {
       policy,
+      risk_alpha: policy === 'adaptive_risk' ? riskAlpha : undefined,
       seed,
       duration_hours: hours,
       dt_s: dt,
@@ -1172,12 +1189,24 @@ function Simulate() {
                   </option>
                   <option value="static_c">Static C-band</option>
                   <option value="static_o">Static O-band</option>
+                  <option value="adaptive_risk" disabled={!riskEnabled} title={!riskEnabled ? 'The active model is not calibrated' : undefined}>
+                    Adaptive risk · lower confidence bound
+                  </option>
                 </select>
                 <small>
                   Adaptive combines predictive routing, band selection and
                   admission control.
                 </small>
               </label>
+              {policy === 'adaptive_risk' && (
+                <label className="form-field">
+                  Risk level α
+                  <select value={riskAlpha} onChange={(e) => setRiskAlpha(Number(e.target.value))} disabled={!riskEnabled} title={!riskEnabled ? 'The active model is not calibrated' : undefined}>
+                    {(riskAlphas.length ? riskAlphas : [0.05, 0.1, 0.2]).map((alpha) => <option key={alpha} value={alpha}>{alpha}</option>)}
+                  </select>
+                  <small>{riskEnabled ? 'Admits only when the lower confidence estimate meets the SLA.' : 'Unavailable: the active model has no calibrated intervals.'}</small>
+                </label>
+              )}
               <label className="form-field">
                 Topology preset
                 <select
@@ -2081,6 +2110,10 @@ function Benchmarks() {
 }
 
 function Lab() {
+  const model = useQuery({ queryKey: ['ml-model'], queryFn: mlModel, retry: false });
+  const calibratedAlphas = model.data?.calibration?.alphas.map(Number).filter((x): x is 0.05 | 0.1 | 0.2 => x === 0.05 || x === 0.1 || x === 0.2) ?? [];
+  const [alpha, setAlpha] = useState(0.1);
+  const selectedAlphaCalibrated = calibratedAlphas.includes(alpha as 0.05 | 0.1 | 0.2);
   const [form, setForm] = useState({
     length_km: 30,
     aerial_fraction: 1,
@@ -2091,11 +2124,21 @@ function Lab() {
     dtemp_dt_now: 0,
     wind_now: 3,
     wind_trend: 0,
+    wind_trend_15: undefined as number | undefined,
+    traffic_trend_15: undefined as number | undefined,
+    dtemp_trend_5: undefined as number | undefined,
+    wind_max_30: undefined as number | undefined,
+    traffic_mean_30: undefined as number | undefined,
     hour: 15,
   });
   const [output, setOutput] = useState<{
     werner: number;
     fidelity: number;
+    werner_lo?: number;
+    werner_hi?: number;
+    fidelity_lo?: number;
+    fidelity_hi?: number;
+    inputs_imputed?: boolean;
   } | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -2116,15 +2159,15 @@ function Lab() {
     const timer = window.setTimeout(() => {
       setBusy(true);
       setError('');
-      void predict(form)
+      void predict({ ...form, alpha: selectedAlphaCalibrated ? alpha as 0.05 | 0.1 | 0.2 : undefined })
         .then(setOutput)
         .catch((e) =>
-          setError(e instanceof Error ? e.message : 'Predictor request failed'),
+          setError(e instanceof ApiError && e.message === 'model_not_calibrated' ? 'This model has no calibrated interval for the selected α.' : e instanceof Error ? e.message : 'Predictor request failed'),
         )
         .finally(() => setBusy(false));
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [form]);
+  }, [form, alpha, selectedAlphaCalibrated]);
   const update = (name: keyof typeof form, value: number | string) =>
     setForm((old) => ({ ...old, [name]: value }));
   return (
@@ -2204,7 +2247,23 @@ function Lab() {
                 onChange={(e) => update('wind_now', Number(e.target.value))}
               />
             </label>
+            <label className="form-field">
+              Interval α
+              <select value={alpha} disabled={!calibratedAlphas.length} onChange={(e) => setAlpha(Number(e.target.value))} title={!calibratedAlphas.length ? 'The active model is not calibrated' : undefined}>
+                {(calibratedAlphas.length ? calibratedAlphas : [0.05, 0.1, 0.2]).map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+              <small>{calibratedAlphas.length ? 'Intervals are calibrated on simulated data.' : 'No calibrated interval is available.'}</small>
+            </label>
           </div>
+          <details className="advanced-inputs"><summary>Advanced inputs · v2 feature schema</summary><div className="form-grid">
+            {([
+              ['wind_trend_15', 'Wind trend · 15 steps', -60, 60],
+              ['traffic_trend_15', 'Traffic trend · 15 steps', -1, 1],
+              ['dtemp_trend_5', 'Cooling trend · 5 steps', -100, 100],
+              ['wind_max_30', 'Maximum wind · 30 steps', 0, 60],
+              ['traffic_mean_30', 'Mean traffic · 30 steps', 0, 1],
+            ] as const).map(([key, title, min, max]) => <label className="form-field" key={key}>{title}<input type="number" min={min} max={max} value={form[key] ?? ''} onChange={(e) => update(key, e.target.value === '' ? undefined as never : Number(e.target.value))} /></label>)}
+          </div></details>
           {error && <div className="form-alert">{error}</div>}
           <div className="predictor-output">
             <div>
@@ -2220,6 +2279,8 @@ function Lab() {
               <span>Illustrative model · not simulation output</span>
             </div>
           </div>
+          {output?.fidelity_lo !== undefined && output.fidelity_hi !== undefined && <div className="interval-result"><span>Calibrated on simulated data · {alpha}</span><div className="interval-track" role="img" aria-label={`Fidelity interval from ${output.fidelity_lo.toFixed(3)} to ${output.fidelity_hi.toFixed(3)}`}><i style={{ left: `${Math.max(0,Math.min(100,(output.fidelity_lo-0.25)/0.75*100))}%`, width: `${Math.max(0,Math.min(100,(output.fidelity_hi-output.fidelity_lo)/0.75*100))}%` }} /></div><small>{fidelity(output.fidelity_lo)} – {fidelity(output.fidelity_hi)}</small></div>}
+          {output?.inputs_imputed && <div className="notice small-notice">Some v2 advanced inputs were imputed from the supplied values.</div>}
         </Panel>
         <Panel
           title="Physics explorer"

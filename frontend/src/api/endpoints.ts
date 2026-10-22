@@ -38,6 +38,13 @@ export const createBenchmark = (body: z.input<typeof S.BenchmarkRequest>) =>
   });
 export const benchmarks = () =>
   request('/api/v1/benchmarks', { schema: z.array(S.Benchmark) });
+export const mlModel = () => request('/api/v1/ml/model', { schema: S.MlModel.nullable() });
+export const mlExperiments = (kind?: string, limit = 50) => {
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (kind) query.set('kind', kind);
+  return request(`/api/v1/ml/experiments?${query}`, { schema: z.array(S.ExperimentRow) });
+};
+export const mlExperiment = (id: string) => request(`/api/v1/ml/experiments/${encodeURIComponent(id)}`, { schema: S.ExperimentDetail });
 export const benchmark = (id: string) =>
   request(`/api/v1/benchmarks/${encodeURIComponent(id)}`, {
     schema: S.Benchmark,

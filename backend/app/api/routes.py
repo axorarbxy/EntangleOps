@@ -1,6 +1,7 @@
 from __future__ import annotations
 import math
 from fastapi import APIRouter,BackgroundTasks,Depends,HTTPException,Path,Query,Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel,ConfigDict,Field
 from app.config import settings
 from app.schemas import BenchmarkRequest,PredictRequest,RunStatus,RunSummary,SimRequest,WsTicketRequest
@@ -10,6 +11,8 @@ from app.core.sequence_adapter import cross_check_link
 from security.auth import Principal,get_principal,require_role
 from monitoring import metrics as mon
 from app.db.session import run_db
+from app.ml.constants import ALPHAS
+from app.ml.conformal import UncalibratedModelError
 
 router=APIRouter();ID=r"^[A-Za-z0-9_-]{8,32}$"
 class KeyCreate(BaseModel):
@@ -39,6 +42,12 @@ def _extra_cost(request:Request,principal:Principal,cost:float)->None:
     if not request.app.state.limiter_key.consume(principal.key_id,cost):raise HTTPException(429,"Rate limit exceeded",headers={"Retry-After":"30"})
 @router.post("/simulations",status_code=202,response_model=RunStatus)
 async def start_sim(c:SimRequest,bg:BackgroundTasks,request:Request,p:Principal=Depends(require_role("operator"))):
+    if c.policy=="adaptive_risk":
+        alpha=c.risk_alpha if c.risk_alpha is not None else settings.ml_risk_alpha
+        calibration=getattr(request.app.state.predictor,"calibration",None)
+        if alpha not in ALPHAS or not calibration or str(alpha) not in calibration.get("q",{}):
+            return JSONResponse({"error":"model_not_calibrated"},status_code=409)
+        c=SimRequest.model_validate({**c.model_dump(mode="python"),"risk_alpha":alpha})
     _budget(c);store=request.app.state.store;await _queue_check(store)
     if await run_db(store.count_active,p.key_id)>=settings.max_runs_per_key_active:
         try:mon.run_denied.labels("quota").inc()
@@ -89,8 +98,26 @@ def get_bench(request:Request,bid:str=Path(pattern=ID),p:Principal=Depends(get_p
     return b
 @router.post("/predict")
 def predict(c:PredictRequest,request:Request,p:Principal=Depends(get_principal)):
+    predictor=request.app.state.predictor
     h=c.hour%24;features=[c.length_km,c.aerial_fraction,float(c.band=="O"),c.traffic_now,c.traffic_trend,c.temp_now,c.dtemp_dt_now,c.wind_now,c.wind_trend,math.sin(2*math.pi*h/24),math.cos(2*math.pi*h/24)]
-    w=float(request.app.state.predictor.predict_w([features])[0]);return {"werner":w,"fidelity":werner_to_fidelity(w)}
+    imputed=False
+    if predictor.feature_schema=="v2":
+        extras={"wind_trend_15":c.wind_trend_15 if c.wind_trend_15 is not None else 3*c.wind_trend,
+                "traffic_trend_15":c.traffic_trend_15 if c.traffic_trend_15 is not None else 3*c.traffic_trend,
+                "dtemp_trend_5":c.dtemp_trend_5 if c.dtemp_trend_5 is not None else 0.0,
+                "wind_max_30":c.wind_max_30 if c.wind_max_30 is not None else c.wind_now,
+                "traffic_mean_30":c.traffic_mean_30 if c.traffic_mean_30 is not None else c.traffic_now}
+        imputed=any(getattr(c,key) is None for key in extras)
+        from app.ml.features import werner_np
+        features.extend([extras["wind_trend_15"],extras["traffic_trend_15"],extras["dtemp_trend_5"],extras["wind_max_30"],extras["traffic_mean_30"],c.length_km*c.aerial_fraction,
+                         float(werner_np(c.length_km,c.aerial_fraction,c.band=="O",c.traffic_now,c.dtemp_dt_now,c.wind_now))])
+    X=[features];w=float(predictor.predict_w(X)[0]);result={"werner":w,"fidelity":werner_to_fidelity(w),"model_id":getattr(request.app.state,"model_id",None)}
+    if predictor.feature_schema=="v2":result["inputs_imputed"]=imputed
+    if c.alpha is not None:
+        try:_,lo,hi=predictor.predict_w_interval_full(X,c.alpha)
+        except UncalibratedModelError:return JSONResponse({"error":"model_not_calibrated"},status_code=409)
+        result.update({"werner_lo":float(lo[0]),"werner_hi":float(hi[0]),"fidelity_lo":werner_to_fidelity(float(lo[0])),"fidelity_hi":werner_to_fidelity(float(hi[0])),"alpha":c.alpha})
+    return result
 @router.get("/crosscheck")
 def crosscheck(length_km:float=Query(default=30,ge=.1,le=200),band:str=Query(default="O",pattern="^(C|O)$"),p:Principal=Depends(require_role("admin"))):return cross_check_link(length_km,band)
 @router.post("/ws-ticket")

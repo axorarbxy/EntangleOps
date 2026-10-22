@@ -9,6 +9,8 @@ from app.db.types import JSONDoc, JSONRaw, UTCDateTime, utcnow
 BigIntPK = BigInteger().with_variant(Integer, "sqlite")
 F = Float(53)
 STATUS_CHECK = "status IN ('queued','running','done','error')"
+FEATURE_COLUMNS = ("length_km", "aerial_fraction", "band_is_o", "traffic_now", "traffic_trend", "temp_now",
+                   "dtemp_dt_now", "wind_now", "wind_trend", "hour_sin", "hour_cos")
 
 
 class ApiKey(Base):
@@ -64,7 +66,7 @@ class Run(Base):
     heartbeat_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     __table_args__ = (
         CheckConstraint(STATUS_CHECK, name="status"),
-        CheckConstraint("policy IN ('static_c','static_o','adaptive')", name="policy"),
+        CheckConstraint("policy IN ('static_c','static_o','adaptive','adaptive_risk')", name="policy"),
         CheckConstraint("n_steps > 0", name="n_steps_pos"),
         CheckConstraint("status <> 'done' OR summary IS NOT NULL", name="done_has_summary"),
         CheckConstraint("status <> 'error' OR error IS NOT NULL", name="error_has_code"),
@@ -139,7 +141,41 @@ class ModelArtifact(Base):
     training_dataset_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("datasets.id", ondelete="SET NULL"))
     trained_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    __table_args__ = (Index("uq_model_artifacts_one_active", "is_active", unique=True, postgresql_where=text("is_active"), sqlite_where=text("is_active = 1")),)
+    profile: Mapped[str] = mapped_column(String(32), default="baseline_v1", nullable=False)
+    feature_schema: Mapped[str] = mapped_column(String(8), default="v1", nullable=False)
+    target_mode: Mapped[str] = mapped_column(String(16), default="direct", nullable=False)
+    format_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    status: Mapped[str] = mapped_column(String(12), default="candidate", nullable=False)
+    calibration: Mapped[dict | None] = mapped_column(JSONDoc)
+    card: Mapped[dict | None] = mapped_column(JSONDoc)
+    __table_args__ = (
+        Index("uq_model_artifacts_one_active", "is_active", unique=True, postgresql_where=text("is_active"), sqlite_where=text("is_active = 1")),
+        CheckConstraint("feature_schema IN ('v1','v2')", name="feature_schema"),
+        CheckConstraint("target_mode IN ('direct','residual')", name="target_mode"),
+        CheckConstraint("status IN ('candidate','champion','retired')", name="status"),
+        CheckConstraint("NOT is_active OR status = 'champion'", name="active_is_champion"),
+    )
+
+
+class MlExperiment(Base):
+    __tablename__ = "ml_experiments"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    profile: Mapped[str | None] = mapped_column(String(32))
+    model_id: Mapped[int | None] = mapped_column(ForeignKey("model_artifacts.id", ondelete="SET NULL"))
+    dataset_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("datasets.id", ondelete="SET NULL"))
+    config: Mapped[dict] = mapped_column(JSONDoc, nullable=False)
+    metrics: Mapped[dict] = mapped_column(JSONDoc, nullable=False)
+    slices: Mapped[dict | None] = mapped_column(JSONDoc)
+    code_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, nullable=False)
+    __table_args__ = (
+        CheckConstraint("kind IN ('train','evaluation','tuning','ablation','policy_study','drift_baseline')", name="kind"),
+        Index("ix_ml_experiments_kind_created_at", "kind", "created_at"),
+        Index("ix_ml_experiments_model_id", "model_id"),
+    )
 
 
 class Dataset(Base):

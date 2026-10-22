@@ -16,3 +16,15 @@ def test_me_returns_authenticated_principal():
         response=client.get("/api/v1/me",headers={"X-API-Key":key})
         assert response.status_code==200
         assert response.json()=={"key_id":record.key_id,"name":"viewer","role":"viewer"}
+
+def test_ml_registry_endpoints_are_viewer_readable():
+    app=create_app()
+    with TestClient(app) as client:
+        key,_=app.state.keystore.create("ml viewer","viewer")
+        headers={"X-API-Key":key}
+        model=client.get("/api/v1/ml/model",headers=headers)
+        experiments=client.get("/api/v1/ml/experiments",headers=headers)
+        assert model.status_code==200
+        assert model.json() is None or {"profile","feature_schema","horizon_steps","sha256"}.issubset(model.json())
+        assert experiments.status_code==200
+        assert isinstance(experiments.json(),list)

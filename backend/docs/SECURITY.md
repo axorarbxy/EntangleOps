@@ -10,6 +10,7 @@ The control plane uses expiring, revocable API keys stored as peppered HMAC dige
 |---|---|
 | `GET /api/v1/me`, `GET /api/v1/topology`, `POST /api/v1/predict`, simulation and benchmark reads, `POST /api/v1/ws-ticket` | viewer |
 | `POST /api/v1/simulations`, `POST /api/v1/benchmarks` | operator |
+| `GET /api/v1/ml/model`, `GET /api/v1/ml/experiments`, `GET /api/v1/ml/experiments/{id}` | viewer |
 | `GET/POST/DELETE /api/v1/admin/keys`, `GET /api/v1/admin/audit`, `GET /api/v1/admin/health/details`, `GET /api/v1/crosscheck` | admin |
 
 ## Deployment
@@ -22,6 +23,7 @@ Run the backend behind the supplied Caddy TLS proxy. Set `EO_TRUSTED_PROXY_COUNT
 - API keys are shared secrets with roles, not user accounts. There is no SSO, MFA, or per-user identity beyond the key.
 - The audit hash chain detects edits and reordered entries, but cannot prevent deleting the whole log. Ship it to external append-only storage in production.
 - The model signature uses a symmetric key. Anyone holding it can sign a malicious model; protect and rotate it like a root credential.
+- ML experiments are append-only in the database; model candidates are signed artifacts addressed by SHA-256. Promotion runs a fail-closed evaluation gate and requires an application restart so the serving process loads the new champion.
 - The simulation uses illustrative physics. Nothing here provides a quantum-security guarantee; this protects the control plane software, not a quantum channel.
 - This layer has not been penetration-tested and is a baseline, not a certification.
 

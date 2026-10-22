@@ -36,6 +36,21 @@ groups:
         for: 15m
         labels: {severity: warning}
         annotations: {summary: "Predictor inputs are outside training range", description: "0.2 is a placeholder until a baseline is measured."}
+      - alert: EntangleOpsMLFeatureDrift
+        expr: max(eo_ml_feature_psi) > 0.25
+        for: 15m
+        labels: {severity: warning}
+        annotations: {summary: "ML input feature drift is elevated", description: "PSI > 0.25 is a provisional trigger; measure and review against your workload before relying on it."}
+      - alert: EntangleOpsMLIntervalCoverageLow
+        expr: eo_ml_interval_coverage{alpha="0.05"} < 0.90 or eo_ml_interval_coverage{alpha="0.1"} < 0.85 or eo_ml_interval_coverage{alpha="0.2"} < 0.75
+        for: 15m
+        labels: {severity: warning}
+        annotations: {summary: "ML interval coverage is below nominal", description: "Coverage gauge is a shadow simulation measure; verify ground truth and alpha before taking action."}
+      - alert: EntangleOpsMLInferenceSlow
+        expr: histogram_quantile(0.95, sum by (le, kind) (rate(eo_ml_inference_seconds_bucket[5m]))) > 0.25
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "ML inference latency is elevated", description: "0.25 seconds is a provisional threshold; compare with the measured service baseline."}
       - alert: EntangleOpsDatabaseUnavailable
         expr: eo_db_reachable == 0
         for: 1m

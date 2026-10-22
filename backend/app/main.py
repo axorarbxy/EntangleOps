@@ -13,7 +13,7 @@ from app.services.runner import RunStore
 from app.db.migrate import schema_state, upgrade_to_head
 from app.db.instrument import instrument_pool
 from app.db.repos.runs import RunRepo
-from app.db.repos.model_registry import ModelRegistry
+from app.services.ml_service import MlService
 from app.db.session import make_engine, make_session_factory, resolve_url
 from security.validation import enforce,InsecureConfigError
 from security.keys import KeyStore
@@ -70,10 +70,24 @@ async def lifespan(app:FastAPI):
     if recovered:app.state.audit.event("db.recovered",count=recovered)
     set_audit_callback(app.state.audit.event)
     app.state.predictor=FidelityPredictor.load_or_train(settings.model_path,settings.forecast_horizon_steps,settings.default_seed)
-    app.state.model_registry=ModelRegistry(session_factory)
+    app.state.ml_service=MlService(session_factory)
+    app.state.model_registry=app.state.ml_service.registry
     app.state.model_id=app.state.model_registry.record(settings.model_path,{
         "horizon_steps":app.state.predictor.horizon_steps,"metrics":app.state.predictor.metrics,
-        "feature_min":app.state.predictor.feature_min,"feature_max":app.state.predictor.feature_max})
+        "feature_min":app.state.predictor.feature_min,"feature_max":app.state.predictor.feature_max,
+        "profile":app.state.predictor.profile,"feature_schema":app.state.predictor.feature_schema,
+        "target_mode":app.state.predictor.target_mode,"calibration":app.state.predictor.calibration,
+        "card":app.state.predictor.card,"sklearn_version":app.state.predictor.sklearn_version,
+        "n_scenarios":app.state.predictor.n_scenarios,
+        "train_seed":app.state.predictor.train_seed,
+        "metrics":{**app.state.predictor.metrics,"mean_target":app.state.predictor.mean_target,
+                   "format_version":app.state.predictor.format_version}})
+    try:
+        from monitoring.metrics import bounded
+        mon.ml_model_info.labels(bounded(app.state.predictor.profile,mon.ML_PROFILES,"legacy"),
+                                 bounded(app.state.predictor.feature_schema,mon.ML_SCHEMAS),
+                                 bounded(app.state.predictor.target_mode,mon.ML_TARGETS)).set(1)
+    except Exception:logging.getLogger(__name__).exception("Unable to publish ML model metadata")
     mon.build_info.labels("1.0.0",settings.env).set(1);mon.queue_capacity.set(settings.max_queued_runs)
     if settings.env!="production" and settings.metrics_enabled and not settings.metrics_token:logging.getLogger(__name__).warning("EO_METRICS_TOKEN is unset; /metrics is open in development")
     tasks=[asyncio.create_task(loop_lag_task(settings.loop_lag_interval_s)),asyncio.create_task(audit_verify_task(app.state.audit,settings.audit_verify_interval_s)),asyncio.create_task(db_maintenance_task(app,settings.db_maintenance_interval_s,settings.run_lease_s))]
@@ -115,7 +129,8 @@ def create_app()->FastAPI:
     async def internal_error(request:Request,exc:Exception):
         logging.getLogger(__name__).exception("Unhandled request exception",exc_info=exc)
         return JSONResponse({"error":"internal","request_id":getattr(request.state,"request_id","unknown")},status_code=500)
-    app.include_router(router,prefix="/api/v1");app.include_router(ws_router)
+    from app.api.ml_routes import router as ml_router
+    app.include_router(router,prefix="/api/v1");app.include_router(ml_router,prefix="/api/v1/ml");app.include_router(ws_router)
     app.include_router(metrics_router);app.include_router(health_router)
     app.add_middleware(CORSMiddleware,allow_origins=settings.cors_origins,allow_methods=["GET","POST","DELETE"],allow_headers=["X-API-Key","Content-Type","Authorization","X-Request-ID"],allow_credentials=False,max_age=600)
     app.add_middleware(BodySizeLimitMiddleware,max_bytes=settings.max_body_bytes)

@@ -1,6 +1,9 @@
 from __future__ import annotations
+import os
+from pathlib import Path
 from app.config import Settings
 from sqlalchemy.engine import make_url
+from app.ml.constants import ALPHAS
 
 class InsecureConfigError(RuntimeError):
     """Raised when production security settings are unsafe."""
@@ -34,6 +37,11 @@ def validate_db_settings(s: Settings) -> list[str]:
         if (url.host or "") not in ("db","localhost","127.0.0.1","") and url.query.get("sslmode") not in ("verify-full","verify-ca"):problems.append("remote PostgreSQL requires sslmode=verify-full (or verify-ca)")
     if s.migration_database_url.get_secret_value():problems.append("migration credentials must not be present in the backend runtime environment")
     if s.db_echo:problems.append("EO_DB_ECHO must be false in production")
+    if s.ml_risk_alpha not in ALPHAS:problems.append("EO_ML_RISK_ALPHA must be one of 0.05, 0.1, 0.2")
+    if not 1000<=s.ml_prediction_cache_rows<=500000:problems.append("EO_ML_PREDICTION_CACHE_ROWS must be between 1000 and 500000")
+    models=Path(s.ml_models_dir)
+    if not models.is_dir() or (os.name!="nt" and models.stat().st_mode & 0o002):
+        problems.append("EO_ML_MODELS_DIR must exist and must not be world-writable")
     return problems
 
 def enforce(s: Settings)->None:

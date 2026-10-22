@@ -175,6 +175,9 @@ export async function demoResponse(
     return { id: benchmarks.id, status: 'done' };
   if (path === '/api/v1/benchmarks/demo-benchmark-001') return benchmarks;
   if (path === '/api/v1/predict') return { werner: 0.92, fidelity: 0.94 };
+  if (path === '/api/v1/ml/model') return { id: 1, profile: 'baseline_v1', status: 'champion', feature_schema: 'v1', target_mode: 'direct', horizon_steps: 5, sha256: 'demo-model-digest', sklearn_version: '1.x', trained_at: new Date().toISOString(), metrics: { r2_test: 0.9, mae_test: 0.01 }, calibration: null, card: null };
+  if (path === '/api/v1/ml/experiments') return [];
+  if (path.startsWith('/api/v1/ml/experiments/')) return { id: path.split('/').at(-1), kind: 'evaluation', name: 'Demo evaluation', profile: 'baseline_v1', model_id: 1, created_at: new Date().toISOString(), code_version: 'demo', config: {}, metrics: {}, slices: {} };
   if (path === '/api/v1/ws-ticket')
     return { ticket: 'demo-single-use-ticket', expires_in: 30 };
   if (path === '/api/v1/admin/keys' && method === 'GET') return [];

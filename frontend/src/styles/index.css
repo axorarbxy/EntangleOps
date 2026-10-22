@@ -723,6 +723,29 @@ code,
 .policy-tag.adaptive {
   color: var(--accent);
 }
+.policy-tag.adaptive_risk {
+  color: #c084fc;
+}
+.ml-model-card { margin-bottom: 16px; }
+.ml-champion { margin-left: 8px; border: 1px solid #2dd4bf66; border-radius: 999px; padding: 3px 8px; color: #2dd4bf; font-size: 10px; vertical-align: middle; }
+.ml-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 12px; }
+.ml-facts > div { display: grid; gap: 5px; padding: 13px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface2); }
+.ml-facts small { color: var(--muted); font-size: 10px; letter-spacing: .08em; }
+.ml-facts b { color: var(--text); font-size: 13px; overflow-wrap: anywhere; }
+.ml-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.ml-chart { height: 240px; margin: 8px 0; }
+.ml-empty { min-height: 120px; display: grid; place-items: center; padding: 20px; color: var(--muted); text-align: center; }
+.ml-data-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
+.ml-data-table caption { padding: 8px; color: var(--muted); text-align: left; font-size: 10px; }
+.ml-data-table th, .ml-data-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
+.ml-data-table th { color: var(--muted); font-weight: 600; }
+.advanced-inputs { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+.advanced-inputs summary { cursor: pointer; color: var(--accent); font-size: 12px; }
+.interval-result { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: center; margin-top: 14px; color: var(--muted); font-size: 11px; }
+.interval-result > span { grid-column: 1 / -1; }
+.interval-track { height: 9px; position: relative; border-radius: 99px; background: var(--surface2); }
+.interval-track i { position: absolute; height: 100%; min-width: 2px; border-radius: inherit; background: #c084fc; }
+@media (max-width: 900px) { .ml-chart-grid { grid-template-columns: minmax(0, 1fr); } }
 .empty-state {
   min-height: 190px;
   display: flex;

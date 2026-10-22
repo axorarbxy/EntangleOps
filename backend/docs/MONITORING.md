@@ -44,6 +44,12 @@ Prometheus is at `http://127.0.0.1:9090`, Alertmanager at `http://127.0.0.1:9093
 | `eo_predictor_abs_error` | histogram | — | Shadow prediction error distribution |
 | `eo_predictor_out_of_range_ratio` | gauge | — | Sampled features outside training range |
 | `eo_predictor_loads_total` | counter | result | Predictor load/retrain outcomes |
+| `eo_ml_model_info` | gauge | profile, feature_schema, target_mode | Loaded model identity (values only; digest stays in the model API) |
+| `eo_ml_inference_seconds` | histogram | kind | Cache-miss inference time for point and interval predictions |
+| `eo_ml_prediction_cache_total` | counter | result | Rows served from or computed through the bounded per-run cache |
+| `eo_ml_feature_psi` | gauge | feature | Population Stability Index against model training reference |
+| `eo_ml_interval_coverage` | gauge | alpha | EWMA empirical interval coverage in shadow simulation |
+| `eo_ml_interval_width` | gauge | alpha | EWMA interval width in Werner units |
 | `eo_auth_failures_total` | counter | reason | Authentication failures |
 | `eo_rate_limited_total` | counter | scope | Rate-limit rejections |
 | `eo_run_denied_total` | counter | reason | Denied run operations |
@@ -59,6 +65,8 @@ Process, platform, and GC collectors are also registered. Labels are bounded to 
 ## Alerts and operations
 
 Prometheus loads `monitoring/alerts.yml`; placeholder predictor thresholds are `0.03` MAE and `0.2` out-of-range ratio. They are not measured baselines. Run `python backend/scripts/measure_baseline.py` after dependencies are installed and review the results before setting alert thresholds. Do not interpret a placeholder as a service-level guarantee. Alertmanager currently uses a no-op receiver; alerts display in the UI, but no notification is delivered until a real receiver is configured.
+
+The ML rules use provisional feature PSI (`0.25`), interval coverage (nominal minus five percentage points), and inference p95 (`250 ms`) thresholds. They are operational starting points, not validated service-level objectives. Establish a stored model baseline with `python backend/scripts/measure_baseline.py --store` and review the model card, `eo_ml_feature_psi`, coverage, and latency before tightening alerts.
 
 For scrape failures, check backend readiness, the metrics token match between `backend/.env` and `monitoring/secrets/metrics_token`, and Prometheus target status. For audit-chain alerts, preserve the audit log and investigate before replacing it. For predictor drift, inspect out-of-range ratio and compare with a newly measured baseline before retraining.
 

@@ -28,9 +28,13 @@ def _db_status(engine):
 
 
 @router.get("/health/live")
-@router.get("/health")
 def live():
     return {"status": "alive"}
+
+
+@router.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 def _writable(path: str) -> bool:
@@ -43,7 +47,10 @@ def _writable(path: str) -> bool:
 
 @router.get("/health/ready")
 def ready(request: Request):
-    db_ok,schema_ok=_db_status(request.app.state.engine)
+    engine = getattr(request.app.state, "engine", None)
+    if engine is None:
+        return JSONResponse({"status": "not_ready"}, status_code=503)
+    db_ok,schema_ok=_db_status(engine)
     if hasattr(m,"db_reachable"):m.db_reachable.set(1 if db_ok else 0)
     if hasattr(m,"db_schema_current"):m.db_schema_current.set(1 if schema_ok else 0)
     queue_ok=False
@@ -69,5 +76,9 @@ def details(request: Request, _: Principal = Depends(require_role("admin"))):
               "schema_current": schema_ok,
               "audit_chain_ok": chain_ok,
               "metrics_token_configured": not settings.metrics_enabled or len(settings.metrics_token) >= 32}
+    predictor = getattr(request.app.state, "predictor", None)
     return {"status": "ok" if all(checks.values()) else "degraded", "uptime_s": max(0, int(time.time()-_STARTED)),
-            "version": "1.0.0", "queue": {"capacity": settings.max_queued_runs, "depth": float(m.queue_depth._value.get())}, "checks": checks}
+            "version": "1.0.0", "queue": {"capacity": settings.max_queued_runs, "depth": float(m.queue_depth._value.get())},
+            "checks": checks, "model_calibrated": bool(getattr(predictor, "calibration", None)),
+            "model": {"profile": getattr(predictor, "profile", "legacy"),
+                      "feature_schema": getattr(predictor, "feature_schema", "v1")}}

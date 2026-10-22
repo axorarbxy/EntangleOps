@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     run_lease_s: int = 60
     db_maintenance_interval_s: int = 30
     max_stored_benchmarks: int = 200
+    ml_models_dir: str = "./data/models"
+    ml_risk_alpha: float = 0.10
+    ml_prediction_cache_rows: int = 50_000
+    ml_psi_window_rows: int = 2000
+    ml_psi_min_rows: int = 500
 
 class ScenarioConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)

@@ -8,7 +8,7 @@ from monitoring import metrics as M
 from sqlalchemy.exc import IntegrityError
 
 log = logging.getLogger(__name__)
-DB_OPS = frozenset({"key_read", "key_write", "audit_append", "audit_read", "run_read", "run_write", "run_steps", "timeseries", "ticket_redeem", "maintenance", "health"})
+DB_OPS = frozenset({"key_read", "key_write", "audit_append", "audit_read", "run_read", "run_write", "run_steps", "timeseries", "ticket_redeem", "maintenance", "health", "ml_experiment_write", "ml_experiment_read"})
 
 
 @contextmanager

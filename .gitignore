@@ -8,6 +8,9 @@ frontend/coverage/
 .env
 backend/data/*
 !backend/data/.gitkeep
+!backend/data/models/
+backend/data/models/*
+!backend/data/models/.gitkeep
 backend/data/keys.json
 backend/data/audit.jsonl
 backend/data/runs/

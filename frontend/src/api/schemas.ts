@@ -97,7 +97,8 @@ export const Scenario = z
   });
 export const SimRequest = z
   .object({
-    policy: z.enum(['static_c', 'static_o', 'adaptive']).default('adaptive'),
+    policy: z.enum(['static_c', 'static_o', 'adaptive', 'adaptive_risk']).default('adaptive'),
+    risk_alpha: z.union([z.literal(0.05), z.literal(0.1), z.literal(0.2)]).optional(),
     seed: z.number().int().min(0).max(2147483647).default(42),
     duration_hours: z.number().gt(0).max(48).default(24),
     dt_s: z.number().int().min(15).max(600).default(60),
@@ -126,10 +127,16 @@ export const PredictRequest = z
     wind_now: z.number().min(0).max(60),
     wind_trend: z.number().min(-60).max(60),
     hour: z.number().min(0).max(24),
+    alpha: z.union([z.literal(0.05), z.literal(0.1), z.literal(0.2)]).optional(),
+    wind_trend_15: z.number().min(-60).max(60).optional(),
+    traffic_trend_15: z.number().min(-1).max(1).optional(),
+    dtemp_trend_5: z.number().min(-100).max(100).optional(),
+    wind_max_30: z.number().min(0).max(60).optional(),
+    traffic_mean_30: z.number().min(0).max(1).optional(),
   })
   .strict();
 export const PredictResult = z
-  .object({ werner: z.number(), fidelity: z.number() })
+  .object({ werner: z.number(), fidelity: z.number(), werner_lo: z.number().optional(), werner_hi: z.number().optional(), fidelity_lo: z.number().optional(), fidelity_hi: z.number().optional(), alpha: z.number().optional(), model_id: z.number().nullable().optional(), inputs_imputed: z.boolean().optional() })
   .passthrough();
 export const RunSummaryResp = RunStatus.extend({
   config: SimRequest,
@@ -246,6 +253,14 @@ export const Benchmark = z
     error: z.string().nullable().optional(),
   })
   .passthrough();
+export const MlModel = z.object({
+  id: z.number(), profile: z.string(), status: z.string(), feature_schema: z.string(), target_mode: z.string(),
+  horizon_steps: z.number(), sha256: z.string(), sklearn_version: z.string().nullable().optional(), trained_at: z.string(),
+  metrics: z.record(z.number()), calibration: z.object({ method: z.string().optional(), alphas: z.array(z.string()), groups: z.array(z.string()), suite_sha256: z.string().nullable().optional(), n: z.record(z.number()) }).nullable(),
+  card: z.unknown().nullable().optional(),
+}).passthrough();
+export const ExperimentRow = z.object({ id: z.string(), kind: z.string(), name: z.string(), profile: z.string().nullable(), model_id: z.number().nullable(), created_at: z.string(), code_version: z.string() }).passthrough();
+export const ExperimentDetail = ExperimentRow.extend({ config: z.record(z.unknown()), metrics: z.record(z.unknown()), slices: z.record(z.unknown()).nullable() }).passthrough();
 export type Role = z.infer<typeof Role>;
 export type Me = z.infer<typeof Me>;
 export type LinkInfo = z.infer<typeof LinkInfo>;

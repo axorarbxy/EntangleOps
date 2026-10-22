@@ -26,6 +26,22 @@ db-audit-verify:
 	python scripts/verify_audit.py
 db-dataset-build:
 	python scripts/build_dataset.py build --name $(name)
+ml-train:
+	python scripts/ml_train.py $(ARGS)
+ml-eval:
+	python scripts/ml_eval.py $(ARGS)
+ml-tune:
+	python scripts/ml_tune.py $(ARGS)
+ml-ablation:
+	python scripts/ml_ablation.py $(ARGS)
+ml-policy-study:
+	python scripts/ml_policy_study.py $(ARGS)
+ml-card:
+	python scripts/ml_card.py $(ARGS)
+ml-promote:
+	python scripts/ml_promote.py $(ARGS)
+test-ml:
+	pytest -q tests/test_ml.py
 monitoring-up:
 	cd .. && docker compose --env-file backend/.env -f docker-compose.yml -f docker-compose.monitoring.yml up --build -d
 monitoring-down:
