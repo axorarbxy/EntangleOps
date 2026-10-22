@@ -28,6 +28,18 @@ import {
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
   adminHealth,
   audit,
   benchmark,
@@ -805,6 +817,14 @@ function Overview() {
           </div>
         </Panel>
       </div>
+      <div className="content-grid overview-insights">
+        <Panel title="Run activity" sub="Runs created in the last 7 days">
+          <RunActivityChart runs={data} />
+        </Panel>
+        <Panel title="Run status mix" sub="Current workspace run states">
+          <RunStatusChart runs={data} />
+        </Panel>
+      </div>
       <Panel
         title="Explore the console"
         sub="Move from network conditions to policy comparison."
@@ -832,6 +852,54 @@ function Overview() {
       </Panel>
     </>
   );
+}
+type DashboardRun = { id: string; status: string; created_at?: string | null };
+function RunActivityChart({ runs: items }: { runs: DashboardRun[] }) {
+  const now = new Date();
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(now);
+    date.setDate(now.getDate() - (6 - index));
+    date.setHours(0, 0, 0, 0);
+    return { date, day: date.toLocaleDateString(undefined, { weekday: 'short' }), runs: 0 };
+  });
+  items.forEach((item) => {
+    if (!item.created_at) return;
+    const created = new Date(item.created_at);
+    const bucket = days.find((day) => day.date.toDateString() === created.toDateString());
+    if (bucket) bucket.runs += 1;
+  });
+  return (
+    <div className="insight-chart" role="img" aria-label="Run activity by day for the last seven days">
+      <ResponsiveContainer width="100%" height={210}>
+        <AreaChart data={days} margin={{ top: 12, right: 12, bottom: 0, left: -18 }}>
+          <defs><linearGradient id="runGlow" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#43f5d0" stopOpacity={0.34} /><stop offset="95%" stopColor="#43f5d0" stopOpacity={0.01} /></linearGradient></defs>
+          <CartesianGrid stroke="var(--border)" strokeDasharray="3 5" vertical={false} />
+          <XAxis dataKey="day" tick={{ fill: 'var(--muted)', fontSize: 10 }} tickLine={false} axisLine={false} />
+          <YAxis allowDecimals={false} width={32} tick={{ fill: 'var(--muted)', fontSize: 9 }} tickLine={false} axisLine={false} />
+          <Tooltip contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 11 }} labelStyle={{ color: 'var(--muted)' }} />
+          <Area type="monotone" dataKey="runs" name="Runs" stroke="#43f5d0" strokeWidth={2.5} fill="url(#runGlow)" activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }} />
+        </AreaChart>
+      </ResponsiveContainer>
+      <div className="chart-caption"><span className="chart-live-dot" /> Based on run creation timestamps</div>
+    </div>
+  );
+}
+function RunStatusChart({ runs: items }: { runs: DashboardRun[] }) {
+  const palette: Record<string, string> = { done: '#43f5d0', running: '#9b8cff', queued: '#43b9ff', failed: '#ff668c', cancelled: '#71809d' };
+  const labels: Record<string, string> = { done: 'Completed', running: 'Running', queued: 'Queued', failed: 'Failed', cancelled: 'Cancelled' };
+  const counts = items.reduce<Record<string, number>>((all, item) => { all[item.status] = (all[item.status] ?? 0) + 1; return all; }, {});
+  const chartData = Object.entries(counts).map(([status, value]) => ({ status, name: labels[status] ?? status, value }));
+  return items.length ? (
+    <div className="status-chart-layout">
+      <div className="status-donut" role="img" aria-label={`Run statuses: ${chartData.map((item) => `${item.name} ${item.value}`).join(', ')}`}>
+        <ResponsiveContainer width="100%" height={190}>
+          <PieChart><Pie data={chartData} dataKey="value" nameKey="name" innerRadius={58} outerRadius={78} paddingAngle={4} stroke="none">{chartData.map((item) => <Cell key={item.status} fill={palette[item.status] ?? '#43b9ff'} />)}</Pie><Tooltip contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 11 }} /></PieChart>
+        </ResponsiveContainer>
+        <div className="donut-total"><b>{items.length}</b><small>Total runs</small></div>
+      </div>
+      <div className="status-legend">{chartData.map((item) => <div key={item.status}><i style={{ background: palette[item.status] ?? '#43b9ff' }} /><span>{item.name}</span><b>{item.value}</b></div>)}</div>
+    </div>
+  ) : <div className="chart-empty">Run a simulation to see status analytics.</div>;
 }
 function storedBenchmarkId(): string | null {
   try {
@@ -1040,6 +1108,9 @@ function NetworkPage() {
               </div>
             </Panel>
           )}
+          {link && <TransitionWavelengthPlanner link={link} load={load} wind={wind} rate={rate} />}
+          {link && <TtlOverFiberPlanner lengthKm={link.length_km} />}
+          <FecBandwidthPlanner />
           <Panel
             title="Link inventory"
             sub={`${shape?.links.length ?? 0} links in preset`}
@@ -1069,6 +1140,179 @@ function NetworkPage() {
   );
 }
 
+function TransitionWavelengthPlanner({
+  link,
+  load,
+  wind,
+  rate,
+}: {
+  link: { length_km: number; aerial_fraction: number };
+  load: number;
+  wind: number;
+  rate: number;
+}) {
+  const [targetBand, setTargetBand] = useState<'C' | 'O'>('O');
+  const [conversionEfficiency, setConversionEfficiency] = useState(0.85);
+  const [fidelityRetention, setFidelityRetention] = useState(0.97);
+  const conditions = { traffic_load: load, wind_ms: wind, dtemp_dt_c_per_h: rate };
+  const transitionMatchedFidelity = linkFidelity(link, targetBand, conditions);
+  const convertedFidelity = 0.25 + (transitionMatchedFidelity - 0.25) * fidelityRetention;
+  const transitionMatchedRate = linkRate(link, targetBand);
+  const convertedRate = transitionMatchedRate * conversionEfficiency;
+  const centerWavelength = targetBand === 'C' ? 1550 : 1310;
+  const gain = Math.max(0, Math.round((transitionMatchedRate - convertedRate) / Math.max(convertedRate, 1e-9) * 100));
+  return (
+    <Panel title="Transition wavelength design" sub="Plan a telecom matched emitter transition vs. frequency conversion">
+      <div className="transition-controls">
+        <label className="transition-select-label" htmlFor="transition-target-band">Fiber target band</label>
+        <select id="transition-target-band" className="select-control" value={targetBand} onChange={(event) => setTargetBand(event.target.value as 'C' | 'O')}>
+          <option value="O">O-band · ~1310 nm</option>
+          <option value="C">C-band · ~1550 nm</option>
+        </select>
+      </div>
+      <div className="transition-assumption-grid">
+        <Range label="Frequency conversion efficiency" value={conversionEfficiency} min={0.5} max={1} step={0.01} unit="%" displayScale={100} onChange={setConversionEfficiency} />
+        <Range label="State fidelity retention" value={fidelityRetention} min={0.8} max={1} step={0.005} unit="%" displayScale={100} onChange={setFidelityRetention} />
+      </div>
+      <div className="transition-flow">
+        <div className="transition-option recommended">
+          <span className="transition-option-tag">TRANSITION MATCHED</span>
+          <b>Emitter transition → {centerWavelength} nm fiber</b>
+          <small>No frequency-conversion stage in this link model</small>
+          <div className="transition-result-row"><span>Estimated fidelity</span><strong>{fidelity(transitionMatchedFidelity)}</strong></div>
+          <div className="transition-result-row"><span>Estimated pair rate</span><strong>{number(transitionMatchedRate, 1)} pairs/s</strong></div>
+          <div className="transition-result-row"><span>Conversion modules</span><strong>0</strong></div>
+        </div>
+        <div className="transition-option">
+          <span className="transition-option-tag secondary">NATIVE + CONVERSION</span>
+          <b>Emitter transition → converter → {targetBand}-band fiber</b>
+          <small>Conversion assumptions applied to the same link estimate</small>
+          <div className="transition-result-row"><span>Estimated fidelity</span><strong>{fidelity(convertedFidelity)}</strong></div>
+          <div className="transition-result-row"><span>Estimated pair rate</span><strong>{number(convertedRate, 1)} pairs/s</strong></div>
+          <div className="transition-result-row"><span>Conversion modules</span><strong>1 per link</strong></div>
+        </div>
+      </div>
+      <div className="transition-takeaway">
+        <Zap size={15} />
+        <span>With these assumptions, matching the emitter to {centerWavelength} nm avoids the converter loss and fidelity-retention penalty{gain ? `, yielding about ${gain}% more estimated pairs/s` : ''} on this link.</span>
+      </div>
+      <div className="notice small-notice transition-caveat">Illustrative architecture comparison. It assumes direct transition engineering preserves the selected band’s modeled link behavior; it does not model emitter availability, coupling, detector response, fabrication, or measured conversion noise. Confirm the trade-off with platform-specific data.</div>
+    </Panel>
+  );
+}
+
+function TtlOverFiberPlanner({ lengthKm }: { lengthKm: number }) {
+  const [enabled, setEnabled] = useState(true);
+  const [confirmSent, setConfirmSent] = useState(false);
+  const [receiverPowerMw, setReceiverPowerMw] = useState(1.3);
+  const propagationUs = lengthKm * 5;
+  const receiverPowerDbm = 10 * Math.log10(receiverPowerMw);
+  return (
+    <Panel title="Single deployed fiber" sub="Quantum transmitter and receiver share one strand with the TTL-over-fiber control signal">
+      <div className="ttl-planner-toggle">
+        <div><b>Confirm TTL lane</b><small>Notify the receiver to commence polarization correction.</small></div>
+        <label className="toggle-switch" aria-label="Enable TTL trigger lane on the shared fiber">
+          <input type="checkbox" checked={enabled} onChange={(event) => { const next = event.target.checked; setEnabled(next); if (!next) setConfirmSent(false); }} />
+          <span />
+        </label>
+      </div>
+      <div className="single-fiber-architecture" role="img" aria-label={`Quantum transmitter and receiver share one ${lengthKm} kilometer fiber; Confirm TTL at 1470 nanometers travels to the receiver`}>
+        <div className="fiber-site">
+          <div className="fiber-device"><Radio size={17} /><b>Confirm TTL</b><small>1470 nm · control</small></div>
+          <div className="fiber-device ttl-endpoint"><Boxes size={16} /><b>OZ TTL TX</b><small>TTL → optical</small></div>
+          <div className="fiber-device"><Zap size={17} /><b>Quantum TX</b><small>Emitter</small></div>
+        </div>
+        <div className="shared-strand">
+          <div className="shared-strand-label"><i /> <b>ONE DEPLOYED FIBER · {lengthKm} km</b> <i /></div>
+          <div className="fiber-lane quantum-lane"><span>Quantum channel</span><b>──────────────→</b></div>
+          <div className={`fiber-lane ttl-lane ${enabled ? '' : 'disabled'}`}><span>Confirm TTL · 1470 nm</span><b>──────────────→</b></div>
+        </div>
+        <div className="fiber-site">
+          <div className="pre-wdm-reading"><Activity size={14} /><b>{number(receiverPowerMw, 2)} mW</b><small>Receiver ingress</small></div>
+          <div className="fiber-device first-wdm"><Boxes size={17} /><b>WDM 1</b><small>First demux</small></div>
+          <div className="fiber-device ttl-endpoint"><Boxes size={16} /><b>OZ TTL RX</b><small>Optical → TTL</small></div>
+          <div className="fiber-device"><Network size={17} /><b>Quantum RX</b><small>Detector</small></div>
+        </div>
+      </div>
+      <div className="receiver-power-measurement">
+        <label htmlFor="receiver-ingress-power">Total telecom optical power · measured before receiver WDM 1</label>
+        <div className="power-reading-input"><input id="receiver-ingress-power" type="number" min="0.001" max="1000" step="0.01" value={receiverPowerMw} onChange={(event) => setReceiverPowerMw(Math.min(1000, Math.max(0.001, Number(event.target.value) || 0.001)))} /><span>mW</span></div>
+        <div className="power-reading-dbm"><small>Equivalent optical level</small><b>{number(receiverPowerDbm, 2)} dBm</b></div>
+      </div>
+      <div className="polarization-handshake">
+        <div className={`handshake-state ${confirmSent ? 'received' : ''}`}>
+          <span className="handshake-indicator" />
+          <div><b>{confirmSent ? 'Preview: receiver notified' : 'Awaiting confirmation'}</b><small>{confirmSent ? 'Piezoelectric fiber squeezer correction staged in this UI preview' : 'Confirm TTL instructs the receiver to start polarization correction'}</small></div>
+        </div>
+        <div className="handshake-actions">
+          <button className="primary-button small-button" disabled={!enabled || confirmSent} onClick={() => setConfirmSent(true)}>
+            Preview Confirm TTL · 1470 nm
+            <ArrowUpRight size={14} />
+          </button>
+          {confirmSent && <button className="text-button" onClick={() => setConfirmSent(false)}>Reset preview</button>}
+        </div>
+      </div>
+      <div className="ttl-metrics">
+        <div><small>Estimated one-way fiber delay</small><b>{enabled ? `${number(propagationUs, 1)} μs` : 'Path disabled'}</b></div>
+        <div><small>Deployed fiber strands</small><b>1 shared</b></div>
+        <div><small>TTL converter endpoints</small><b>{enabled ? '2 · TX + RX' : 'Inactive'}</b></div>
+      </div>
+      <div className="notice small-notice ttl-caveat">1.3 mW is the provided pre-WDM receiver measurement reference; update it with the current meter reading. The button previews the handshake in the UI; it does not send a hardware signal or verify polarization lock. Confirm power-meter calibration, wavelength range, pulse timing, filtering, and coexistence against the installed equipment. Power is displayed for monitoring only and is not yet coupled to the quantum-fidelity model.</div>
+    </Panel>
+  );
+}
+
+function FecBandwidthPlanner() {
+  const [lineRateMbps, setLineRateMbps] = useState(1000);
+  const [codeRate, setCodeRate] = useState(0.8);
+  const [enabled, setEnabled] = useState(true);
+  const effectiveRate = enabled ? codeRate : 1;
+  const payloadMbps = lineRateMbps * effectiveRate;
+  const redundantMbps = lineRateMbps - payloadMbps;
+  const overheadPct = payloadMbps > 0 ? (redundantMbps / payloadMbps) * 100 : 0;
+  const neededMbps = payloadMbps > 0 ? lineRateMbps / effectiveRate : 0;
+  return (
+    <Panel title="Forward error correction · bandwidth budget" sub="Trade redundant bits for protected classical payload capacity">
+      <div className="fec-controls">
+        <label className="form-field">
+          FEC encoding
+          <select value={enabled ? 'on' : 'off'} onChange={(event) => setEnabled(event.target.value === 'on')}>
+            <option value="on">Enabled</option>
+            <option value="off">Disabled · raw line rate</option>
+          </select>
+        </label>
+        <label className="form-field">
+          Available line capacity (Mbps)
+          <input type="number" min={1} max={100000} step={10} value={lineRateMbps} onChange={(event) => setLineRateMbps(Math.max(1, Number(event.target.value) || 1))} />
+        </label>
+        <label className="form-field">
+          FEC code rate
+          <select value={codeRate} onChange={(event) => setCodeRate(Number(event.target.value))} disabled={!enabled}>
+            <option value={0.5}>1/2 · robust, 100% overhead</option>
+            <option value={0.6667}>2/3 · 50% overhead</option>
+            <option value={0.75}>3/4 · 33% overhead</option>
+            <option value={0.8}>4/5 · 25% overhead</option>
+            <option value={0.8333}>5/6 · 20% overhead</option>
+            <option value={0.9}>9/10 · 11% overhead</option>
+          </select>
+          <small>Code rate = payload bits / encoded bits</small>
+        </label>
+      </div>
+      <div className="fec-budget-bar" role="img" aria-label={`${number(payloadMbps, 1)} megabits per second payload and ${number(redundantMbps, 1)} megabits per second FEC redundancy`}>
+        <div className="fec-payload" style={{ width: `${effectiveRate * 100}%` }}><span>Payload</span><b>{number(payloadMbps, 1)} Mbps</b></div>
+        {enabled && <div className="fec-redundancy" style={{ width: `${(1 - effectiveRate) * 100}%` }}><span>FEC</span><b>{number(redundantMbps, 1)}</b></div>}
+      </div>
+      <div className="fec-metrics">
+        <div><small>Payload goodput budget</small><b>{number(payloadMbps, 1)} Mbps</b></div>
+        <div><small>Redundancy bandwidth</small><b>{number(redundantMbps, 1)} Mbps</b></div>
+        <div><small>Overhead vs. payload</small><b>{number(overheadPct, 1)}%</b></div>
+      </div>
+      <div className="fec-takeaway"><Radio size={15} /><span>At this setting, {number(payloadMbps, 1)} Mbps of classical payload occupies {number(lineRateMbps, 1)} Mbps of line capacity. Delivering the same payload with FEC requires about {number(neededMbps, 1)} Mbps before framing and other protocol overhead.</span></div>
+      <div className="notice small-notice fec-caveat">This is a bandwidth accounting tool, not a codec/decoder simulation. Correction strength and post-FEC error rate depend on the selected code, block size, interleaving, and measured channel error statistics. Classical FEC does not directly alter the modeled quantum-state fidelity.</div>
+    </Panel>
+  );
+}
+
 function Range({
   label,
   value,
@@ -1076,6 +1320,7 @@ function Range({
   max,
   step,
   unit,
+  displayScale = 1,
   onChange,
 }: {
   label: string;
@@ -1084,6 +1329,7 @@ function Range({
   max: number;
   step: number;
   unit: string;
+  displayScale?: number;
   onChange: (v: number) => void;
 }) {
   return (
@@ -1091,7 +1337,7 @@ function Range({
       <span>
         {label}
         <b>
-          {number(value, 2)} {unit}
+          {number(value * displayScale, 2)} {unit}
         </b>
       </span>
       <input
@@ -1103,7 +1349,7 @@ function Range({
         onChange={(e) => onChange(Number(e.target.value))}
       />
       <small>
-        {min}–{max} {unit}
+        {min * displayScale}–{max * displayScale} {unit}
       </small>
     </label>
   );
