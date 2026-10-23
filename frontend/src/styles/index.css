@@ -51,7 +51,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
   background-image: radial-gradient(ellipse at 76% -18%, #153a4d55, transparent 42%), radial-gradient(ellipse at 8% 42%, #17255222, transparent 38%);
   background-attachment: fixed;
@@ -1854,16 +1854,25 @@ code,
 }
 .spinner {
   display: inline-block;
-  width: 13px;
-  height: 13px;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, currentColor 25%, transparent),
+    currentColor,
+    color-mix(in srgb, currentColor 25%, transparent)
+  );
+  background-size: 200% 100%;
+  animation: loading-bar 1s ease-in-out infinite;
 }
-@keyframes spin {
+.notice > span.spinner {
+  flex: 0 0 22px;
+}
+@keyframes loading-bar {
   to {
-    transform: rotate(360deg);
+    background-position: -200% 0;
   }
 }
 .form-grid .form-field {
