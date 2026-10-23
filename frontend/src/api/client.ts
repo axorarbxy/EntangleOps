@@ -13,7 +13,7 @@ export async function request<T>(
     auth?: boolean;
   },
 ): Promise<T> {
-  if (import.meta.env.VITE_DEMO_MODE === 'true') {
+  if (env.demoFixtures) {
     const module = await import('../mocks/handlers');
     return options.schema.parse(
       await module.demoResponse(path, options.method ?? 'GET', options.body),

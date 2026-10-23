@@ -108,7 +108,7 @@ export const Scenario = z
 export const SimRequest = z
   .object({
     policy: z.enum(['static_c', 'static_o', 'adaptive', 'adaptive_risk']).default('adaptive'),
-    risk_alpha: z.union([z.literal(0.05), z.literal(0.1), z.literal(0.2)]).optional(),
+    risk_alpha: z.union([z.literal(0.05), z.literal(0.1), z.literal(0.2)]).nullable().optional(),
     seed: z.number().int().min(0).max(2147483647).default(42),
     duration_hours: z.number().gt(0).max(48).default(24),
     dt_s: z.number().int().min(15).max(600).default(60),
@@ -151,6 +151,10 @@ export const PredictResult = z
 export const RunSummaryResp = RunStatus.extend({
   config: SimRequest,
   summary: Summary.nullable(),
+  error: z.string().nullable().optional(),
+  owner: z.string().optional(),
+  n_steps: z.number().int().optional(),
+  dt_s: z.number().int().optional(),
 }).passthrough();
 export const LinkSnap = z
   .object({

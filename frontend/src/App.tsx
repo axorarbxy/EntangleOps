@@ -209,7 +209,7 @@ export function App() {
         onSuccess={() =>
           navigate((location.state as { from?: string } | null)?.from ?? '/')
         }
-        demo={env.demo}
+        demo={env.demo && env.demoFixtures}
       />
     );
   if (!session.apiKey || !principal)
@@ -218,7 +218,7 @@ export function App() {
         onSuccess={() =>
           navigate(location.pathname === '/' ? '/' : location.pathname)
         }
-        demo={env.demo}
+        demo={env.demo && env.demoFixtures}
       />
     );
   const items = nav.filter((n) => !n.role || can(principal.role, n.role));
@@ -226,7 +226,9 @@ export function App() {
     <div className="app-shell">
       {env.demo && (
         <div className="demo-banner">
-          Demo data — synthetic sample data, not live
+          {env.demoFixtures
+            ? 'Fixture demo — synthetic sample data, not live'
+            : 'Demo environment — connected to the local API and persistent database'}
         </div>
       )}
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
@@ -1007,7 +1009,7 @@ function NetworkPage() {
         >
           <div className="topology-box">
             {q.isLoading ? (
-              <Skeleton height={420} />
+              <Skeleton height={336} />
             ) : q.isError ? (
               <ErrorBlock error={q.error} />
             ) : (
@@ -1030,35 +1032,37 @@ function NetworkPage() {
             <span>Aerial share shown per link</span>
           </div>
         </Panel>
-        <div className="network-side">
+        <div className="network-overview">
           <Panel title="Analytic conditions" sub="Illustrative physics preview">
-            <Range
-              label="Classical traffic"
-              value={load}
-              min={0}
-              max={1}
-              step={0.05}
-              unit=""
-              onChange={setLoad}
-            />
-            <Range
-              label="Wind speed"
-              value={wind}
-              min={0}
-              max={30}
-              step={1}
-              unit="m/s"
-              onChange={setWind}
-            />
-            <Range
-              label="Temperature trend"
-              value={rate}
-              min={0}
-              max={20}
-              step={1}
-              unit="°C/h"
-              onChange={setRate}
-            />
+            <div className="network-range-grid">
+              <Range
+                label="Classical traffic"
+                value={load}
+                min={0}
+                max={1}
+                step={0.05}
+                unit=""
+                onChange={setLoad}
+              />
+              <Range
+                label="Wind speed"
+                value={wind}
+                min={0}
+                max={30}
+                step={1}
+                unit="m/s"
+                onChange={setWind}
+              />
+              <Range
+                label="Temperature trend"
+                value={rate}
+                min={0}
+                max={20}
+                step={1}
+                unit="°C/h"
+                onChange={setRate}
+              />
+            </div>
             <div className="notice small-notice">
               This analytic preview uses the illustrative physics model. It is
               not a simulation result.
@@ -1108,33 +1112,33 @@ function NetworkPage() {
               </div>
             </Panel>
           )}
-          {link && <TransitionWavelengthPlanner link={link} load={load} wind={wind} rate={rate} />}
-          {link && <TtlOverFiberPlanner lengthKm={link.length_km} />}
-          <FecBandwidthPlanner />
-          <Panel
-            title="Link inventory"
-            sub={`${shape?.links.length ?? 0} links in preset`}
-          >
-            <div className="link-list">
-              {shape?.links.map((l) => (
-                <button
-                  key={l.link_id ?? l.id ?? `${l.u}-${l.v}`}
-                  onClick={() =>
-                    setSelected(l.link_id ?? l.id ?? `${l.u}-${l.v}`)
-                  }
-                  className={`link-row ${(l.link_id ?? l.id ?? `${l.u}-${l.v}`) === selected ? 'selected' : ''}`}
-                >
-                  <span className="link-status" />
-                  <span className="link-route">
-                    {l.u}—{l.v}
-                  </span>
-                  <span>{l.length_km} km</span>
-                  <span>{Math.round(l.aerial_fraction * 100)}% aerial</span>
-                </button>
-              ))}
-            </div>
-          </Panel>
         </div>
+      </div>
+      <div className="network-tools-grid">
+        {link && <TransitionWavelengthPlanner link={link} load={load} wind={wind} rate={rate} />}
+        {link && <TtlOverFiberPlanner lengthKm={link.length_km} />}
+        <FecBandwidthPlanner />
+        <Panel
+          title="Link inventory"
+          sub={`${shape?.links.length ?? 0} links in preset`}
+        >
+          <div className="link-list">
+            {shape?.links.map((l) => (
+              <button
+                key={l.link_id ?? l.id ?? `${l.u}-${l.v}`}
+                onClick={() => setSelected(l.link_id ?? l.id ?? `${l.u}-${l.v}`)}
+                className={`link-row ${(l.link_id ?? l.id ?? `${l.u}-${l.v}`) === selected ? 'selected' : ''}`}
+              >
+                <span className="link-status" />
+                <span className="link-route">
+                  {l.u}—{l.v}
+                </span>
+                <span>{l.length_km} km</span>
+                <span>{Math.round(l.aerial_fraction * 100)}% aerial</span>
+              </button>
+            ))}
+          </div>
+        </Panel>
       </div>
     </>
   );
@@ -1495,7 +1499,7 @@ function Simulate() {
                 Duration (hours)
                 <input
                   type="number"
-                  min={0.01}
+                  min={1}
                   max={48}
                   step={1}
                   value={hours}

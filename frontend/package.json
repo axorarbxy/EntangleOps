@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite",
     "dev:demo": "cross-env VITE_DEMO_MODE=true vite",
+    "dev:fixtures": "cross-env VITE_DEMO_MODE=true VITE_DEMO_FIXTURES=true vite",
     "build": "tsc -b && vite build",
     "build:demo": "cross-env VITE_DEMO_MODE=true tsc -b && cross-env VITE_DEMO_MODE=true vite build",
+    "build:fixtures": "cross-env VITE_DEMO_MODE=true VITE_DEMO_FIXTURES=true tsc -b && cross-env VITE_DEMO_MODE=true VITE_DEMO_FIXTURES=true vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",

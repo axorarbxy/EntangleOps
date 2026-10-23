@@ -940,9 +940,38 @@ code,
 }
 .network-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(310px, 0.8fr);
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
+}
+.network-grid > .panel,
+.network-overview > .panel {
+  margin-bottom: 0;
+}
+.network-overview {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  min-width: 0;
+}
+.network-range-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.network-range-grid .range-field {
+  min-width: 0;
+  margin: 6px 0 4px;
+}
+.network-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+.network-tools-grid > .panel {
+  height: 100%;
+  margin: 0;
 }
 .topology-box {
   border: 1px solid var(--border);
@@ -957,8 +986,11 @@ code,
 .topology-box .topology {
   height: 410px;
 }
-.network-side .panel {
-  margin-bottom: 12px;
+.network-grid .topology-box {
+  padding: 12px;
+}
+.network-grid .topology-box .topology {
+  height: 336px;
 }
 .range-field {
   display: block;
@@ -1866,6 +1898,21 @@ code,
   .simulate-layout {
     grid-template-columns: minmax(0, 1.25fr) minmax(275px, 0.8fr);
   }
+  .network-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1100px) {
+  .network-grid {
+    grid-template-columns: 1fr;
+  }
+  .network-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto;
+  }
+  .network-range-grid {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 900px) {
   .sidebar {
@@ -1904,6 +1951,10 @@ code,
   .network-grid,
   .simulate-layout,
   .admin-grid {
+    grid-template-columns: 1fr;
+  }
+  .network-overview,
+  .network-tools-grid {
     grid-template-columns: 1fr;
   }
   .simulate-side {
@@ -2028,6 +2079,11 @@ code,
     width: 100%;
   }
   .network-grid {
+    grid-template-columns: 1fr;
+  }
+  .network-overview,
+  .network-tools-grid,
+  .network-range-grid {
     grid-template-columns: 1fr;
   }
   .topology-box {

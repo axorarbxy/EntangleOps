@@ -15,7 +15,9 @@ Copy `.env.example` to `.env` only if overriding public frontend settings. `VITE
 
 ## Demo and deployment
 
-`npm run dev:demo` enables the demo entry point and banner. Demo fixtures can be captured with `EO_API_BASE` and `EO_API_KEY` supplied as shell environment variables using `npm run capture-fixtures`. `npm run contract` validates selected API responses against a live backend. Build with `npm run build`; production deployment is through the root Docker Compose stack, where Caddy serves the frontend and proxies API and WebSocket paths to the backend. The Caddy `/metrics` route remains private.
+`npm run dev:demo` enables a demo banner while using the real API and WebSocket through the Vite proxy. Start the local backend and persistent SQLite demo database first with `backend/scripts/demo.ps1` (see the root README), then create a local operator key with `backend/scripts/demo.ps1 -Action create-key` and enter it in the UI. The database is kept at `backend/data/demo/entangleops.db` and survives restarts. `npm run dev:fixtures` explicitly selects offline synthetic frontend fixtures and does not use the backend or database.
+
+Demo fixtures can be captured with `EO_API_BASE` and `EO_API_KEY` supplied as shell environment variables using `npm run capture-fixtures`. `npm run contract` validates selected API responses against a live backend. Build with `npm run build`; production deployment is through the root Docker Compose stack, where Caddy serves the frontend and proxies API and WebSocket paths to the backend. The Caddy `/metrics` route remains private.
 
 Configure `VITE_GRAFANA_URL` at build time if admins should see a Grafana dashboard link. For production, configure exact `EO_CORS_ORIGINS` and `EO_WS_ALLOWED_ORIGINS` values for the deployed origin.
 
@@ -27,5 +29,5 @@ Configure `VITE_GRAFANA_URL` at build time if admins should see a Grafana dashbo
 - Replay buffers run records in browser memory. Closing the tab discards it; reopening re-streams (one WebSocket ticket per attempt, max 3 streams per key).
 - Benchmark history is stored by the backend database and loaded from `GET /api/v1/benchmarks`; the selected benchmark id is kept per browser tab for convenience.
 - Compare lab and seed sweeps use several runs; with default quotas they execute partly sequentially and can take minutes.
-- Demo mode shows recorded (or synthetic, if so labeled) data and must never represent live results.
+- Fixture mode shows synthetic frontend-only data. Connected demo mode uses the local backend and persistent database, but its simulated network results are still illustrative and are not live hardware measurements.
 - This frontend has not been penetration-tested or accessibility-audited by an external party; treat it as a strong baseline, not a certification.

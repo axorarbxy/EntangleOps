@@ -1,11 +1,16 @@
 from __future__ import annotations
+import os
 from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="EO_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="EO_",
+        env_file=os.environ.get("EO_SETTINGS_FILE", ".env"),
+        extra="ignore",
+    )
     app_name: str = "EntangleOps"
     data_dir: str = "./data"
     model_path: str = "./data/predictor.joblib"

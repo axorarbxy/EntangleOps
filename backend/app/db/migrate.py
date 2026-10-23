@@ -7,8 +7,11 @@ from alembic.script import ScriptDirectory
 
 
 def _config() -> Config:
-    root = Path(__file__).resolve().parents[2]
-    return Config(str(root / "database" / "alembic.ini"))
+    for parent in Path(__file__).resolve().parents:
+        config_path = parent / "database" / "alembic.ini"
+        if config_path.is_file():
+            return Config(str(config_path))
+    raise FileNotFoundError("Could not locate database/alembic.ini from the backend package")
 
 
 def upgrade_to_head(engine) -> None:

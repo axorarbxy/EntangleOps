@@ -123,7 +123,7 @@ Security and monitoring are part of the application path: API-key secrets are st
 | Deployment | Docker Compose, Nginx frontend container, Caddy reverse proxy |
 | Version control | Git + GitHub |
 
-The repository also provides a synthetic demo mode (`npm run dev:demo`) for frontend exploration. Its fixtures are not live API or database data. The SeQUeNCe cross-check is an unavailable stub, and no physical-network validation, production-scale test, penetration test, or live hosted demo is claimed.
+The connected demo (`npm run dev:demo`) uses the local API and persistent database; `npm run dev:fixtures` runs offline synthetic frontend fixtures. Connected demo simulations are persisted locally but remain illustrative, not physical measurements. The SeQUeNCe cross-check is an unavailable stub, and no physical-network validation, production-scale test, penetration test, or live hosted demo is claimed.
 
 ---
 
@@ -206,7 +206,7 @@ docker compose -f docker-compose.yml -f docker-compose.db.yml -f docker-compose.
   exec backend python scripts/manage_keys.py create --name local-admin --role admin
 ```
 
-The command prints the API key once; the UI accepts keys in `eo_<key-id>.<secret>` form. The local frontend can also be started with `npm run dev` from `frontend/` and proxies API traffic to `http://localhost:8000`. Host-side Alembic configuration discovery currently has a known issue; use the Compose deployment for the integrated full-stack run.
+The command prints the API key once; the UI accepts keys in `eo_<key-id>.<secret>` form. For an integrated local demo using persistent SQLite instead of Docker, start `backend/scripts/demo.ps1` from PowerShell in one terminal, then create an operator key in another terminal with `backend/scripts/demo.ps1 -Action create-key`. In `frontend/`, run `npm ci` and `npm run dev:demo`; open `http://localhost:5173` and sign in with the generated key. The demo database and model files live under `backend/data/demo/` and persist across restarts without changing the normal local database. The host Alembic path discovery now searches for the repository migration config, so local migrations can run from this checkout.
 
 The Compose deployment includes Caddy, the static frontend, FastAPI, PostgreSQL, a one-shot migration service, Prometheus, Grafana, and Alertmanager. The app is configured to run as a non-root container with a read-only root filesystem and reduced capabilities. Fresh deployments create an empty database and do not seed an API key; named database and monitoring volumes persist state across restarts. Do not remove the database volume unless its data can be discarded.
 

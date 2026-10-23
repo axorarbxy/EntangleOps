@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { env } from '../env';
 import { request } from './client';
 import { StepRecord, Summary, Ticket, WsMessage } from './schemas';
 
@@ -38,7 +39,7 @@ export async function streamRun(
   const host = location.host;
   const url = `${protocol}//${host}/ws/simulations/${encodeURIComponent(runId)}?ticket=${encodeURIComponent(ticket.ticket)}&speed=${Math.min(200, Math.max(1, handlers.speed ?? 200))}`;
   const defaultFactory =
-    import.meta.env.VITE_DEMO_MODE === 'true'
+    env.demoFixtures
       ? (await import('../mocks/fixtureSocket')).fixtureSocket
       : browserSocket;
   const socket = (handlers.factory ?? defaultFactory)(url);
