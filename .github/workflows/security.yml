@@ -18,5 +18,5 @@ jobs:
       - run: python backend/scripts/gen_dashboard.py
       - name: Check Prometheus alert rules
         run: docker run --rm --entrypoint=/bin/promtool -v "${{ github.workspace }}:/workspace" prom/prometheus:v2.54.1 check rules /workspace/monitoring/alerts.yml
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
