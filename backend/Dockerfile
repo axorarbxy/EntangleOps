@@ -1,10 +1,10 @@
-FROM python:3.11-slim AS build
+FROM python:3.15-slim AS build
 WORKDIR /app
 ENV PIP_NO_CACHE_DIR=1 PYTHONDONTWRITEBYTECODE=1
 COPY backend/requirements.txt requirements.txt
 RUN pip install --prefix=/install -r requirements.txt
 
-FROM python:3.11-slim
+FROM python:3.15-slim
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 EO_ENV=production
 RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app
 WORKDIR /app
